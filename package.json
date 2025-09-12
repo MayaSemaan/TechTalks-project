@@ -1,0 +1,27 @@
+{
+  "name": "techtalks-project-1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node smart-medicine/server.js",
+    "dev": "nodemon smart-medicine/server.js",
+    "seed": "node smart-medicine/seed.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MayaSemaan/TechTalks-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MayaSemaan/TechTalks-project/issues"
+  },
+  "homepage": "https://github.com/MayaSemaan/TechTalks-project#readme",
+  "dependencies": {
+    "express": "^5.1.0",
+    "mongoose": "^8.18.1"
+  }
+}
