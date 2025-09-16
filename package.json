@@ -1,7 +1,7 @@
 {
-<<<<<<< HEAD
   "name": "intern1",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,10 +9,11 @@
     "start": "next start"
   },
   "dependencies": {
-    "@sendgrid/mail": "^8.1.5",
+    "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.18.1",
+    "mongoose": "^8.18.0",
     "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -26,31 +27,5 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5"
-=======
-  "name": "techtalks-project-1",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node smart-medicine/server.js",
-    "dev": "nodemon smart-medicine/server.js",
-    "seed": "node smart-medicine/seed.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/MayaSemaan/TechTalks-project.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/MayaSemaan/TechTalks-project/issues"
-  },
-  "homepage": "https://github.com/MayaSemaan/TechTalks-project#readme",
-  "dependencies": {
-    "express": "^5.1.0",
-    "mongoose": "^8.18.1"
->>>>>>> 2bc590c47edf763c013b46b31aff21e8e5f55dda
   }
 }

@@ -1,34 +1,113 @@
-//this file seeds the database with initial data for testing purposes
+import mongoose from "mongoose";
+import User from "../app/models/user.js";
+import Medication from "../app/models/medication.js";
+import ReminderLog from "../app/models/reminderlogs.js";
+import Report from "../app/models/reports.js";
 
-const mongoose = require('mongoose');
-const User = require('./models/user');
-const Medication = require('./models/medication');
-const ReminderLog = require('./models/reminderlogs');
+mongoose.connect(
+  "mongodb+srv://mayasemaan:Sk0JkGszO1BSoDMF@cluster0.hvit37m.mongodb.net/smart-medicine?retryWrites=true&w=majority",
+  { useNewUrlParser: true, useUnifiedTopology: true }
+);
 
-mongoose.connect('mongodb://127.0.0.1:27017/smart-medicine', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connection.once("open", () =>
+  console.log("Connected to MongoDB Atlas!")
+);
+mongoose.connection.on("error", (err) =>
+  console.error("MongoDB connection error:", err)
+);
 
 async function seed() {
-  await User.deleteMany({});
-  await Medication.deleteMany({});
-  await ReminderLog.deleteMany({});
+  try {
+    await User.deleteMany({});
+    await Medication.deleteMany({});
+    await ReminderLog.deleteMany({});
+    await Report.deleteMany({});
 
-  const user = await User.create({ name: 'John Doe', role: 'patient' });
+    const doctor = new User({
+      _id: "64b8a2e41a3c2d7f12345678",
+      name: "Dr. Alice",
+      role: "doctor",
+      email: "doctor@example.com",
+    });
+    await doctor.save();
 
-  const meds = await Medication.insertMany([
-    { name: 'Aspirin', dosage: '100mg', schedule: [new Date().toISOString()], userId: user._id },
-    { name: 'Vitamin D', dosage: '50mg', schedule: [new Date().toISOString()], userId: user._id }
-  ]);
+    const patient = new User({
+      _id: "64c9f1d5b4e8a9c7d9876543",
+      name: "Patient X",
+      role: "patient",
+      email: "patient@example.com",
+    });
+    await patient.save();
 
-  const logs = await ReminderLog.insertMany([
-    { userId: user._id, medicationId: meds[0]._id, timestamp: new Date().toISOString(), status: 'taken', reminderType: 'app' },
-    { userId: user._id, medicationId: meds[1]._id, timestamp: new Date().toISOString(), status: 'missed', reminderType: 'app' }
-  ]);
+    console.log("Doctor ID:", doctor._id.toString());
+    console.log("Patient ID:", patient._id.toString());
 
-  console.log('Seeding done');
-  mongoose.connection.close();
+    const meds = await Medication.insertMany([
+      {
+        name: "Aspirin",
+        dosage: "100mg",
+        schedule: [new Date()],
+        userId: patient._id,
+      },
+      {
+        name: "Vitamin D",
+        dosage: "50mg",
+        schedule: [new Date()],
+        userId: patient._id,
+      },
+    ]);
+
+    await ReminderLog.insertMany([
+      {
+        userId: patient._id,
+        medicationId: meds[0]._id,
+        timestamp: new Date(),
+        status: "taken",
+        reminderType: "app",
+      },
+      {
+        userId: patient._id,
+        medicationId: meds[1]._id,
+        timestamp: new Date(),
+        status: "missed",
+        reminderType: "app",
+      },
+    ]);
+
+    // Create reports properly and populate immediately
+    const report1 = new Report({
+      title: "Blood Test",
+      description: "Blood test results are normal.",
+      doctor: doctor._id,
+      patient: patient._id,
+    });
+    const report2 = new Report({
+      title: "X-Ray",
+      description: "X-Ray shows no issues.",
+      doctor: doctor._id,
+      patient: patient._id,
+    });
+    await report1.save();
+    await report2.save();
+
+    console.log(
+      "Reports created:",
+      report1._id.toString(),
+      report2._id.toString()
+    );
+
+    // Populate doctor and patient in reports for confirmation
+    await report1.populate("doctor patient", "name role");
+    await report2.populate("doctor patient", "name role");
+
+    console.log("Populated reports:", report1, report2);
+
+    console.log("Seeding done!");
+  } catch (error) {
+    console.error("Error seeding data:", error);
+  } finally {
+    mongoose.connection.close();
+  }
 }
 
 seed();
