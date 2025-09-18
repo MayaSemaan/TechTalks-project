@@ -1,0 +1,9 @@
+{
+  "pages": {
+    "/api/medications/cron/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/medications/cron/route.js"
+    ]
+  }
+}
