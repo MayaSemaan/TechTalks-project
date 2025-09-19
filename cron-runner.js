@@ -1,36 +1,52 @@
-// Load environment variables from .env.local
-import "dotenv/config";
+import dbConnect from "./lib/dbConnect.js";
+import Medication from "./lib/models/Medication.js";
+import { sendNotification } from "./lib/sender.js";
 import cron from "node-cron";
-import axios from "axios";
 
-// DEBUG: check environment variable
-console.log("ENABLE_CRON from env:", process.env.ENABLE_CRON);
+const ENABLE_CRON = process.env.ENABLE_CRON === "true";
 
-const CRON_ENABLED = process.env.ENABLE_CRON === "true";
-const CRON_URL =
-  process.env.MEDS_CRON_URL ||
-  "http://localhost:3000/api/medications/cron-mock";
-const CRON_TOKEN = process.env.CRON_SERVICE_TOKEN || "dev-token";
+if (ENABLE_CRON) {
+  console.log("Cron runner started");
 
-if (!CRON_ENABLED) {
-  console.log("Cron disabled");
-  process.exit(0);
+  // runs every minute (for testing, later change to required interval)
+  cron.schedule("* * * * *", async () => {
+    console.log("Running cron job...");
+    await dbConnect();
+
+    try {
+      const medications = await Medication.find({ status: "pending" }).populate(
+        "userId"
+      );
+      let count = 0;
+
+      const now = new Date();
+      const currentHourMinute = `${String(now.getHours()).padStart(
+        2,
+        "0"
+      )}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      for (const med of medications) {
+        const scheduleTimes = med.schedule.split(",").map((t) => t.trim());
+        if (scheduleTimes.includes(currentHourMinute)) {
+          // send notification
+          if (med.userId && med.userId.email) {
+            await sendNotification(
+              med.userId.email,
+              `Time to take ${med.name}`
+            );
+          }
+
+          // update status
+          med.status = "taken";
+          await med.save();
+
+          count++;
+        }
+      }
+
+      console.log(`Cron job success: ${count} medication(s) processed`);
+    } catch (err) {
+      console.error("Cron job failed:", err);
+    }
+  });
 }
-
-console.log("Cron runner started");
-
-// Run every minute (adjust schedule as needed)
-cron.schedule("* * * * *", async () => {
-  console.log("Running cron job...");
-
-  try {
-    const res = await axios.post(
-      CRON_URL,
-      {}, // body can be empty for now
-      { headers: { Authorization: `Bearer ${CRON_TOKEN}` } }
-    );
-    console.log("Cron job success:", res.data);
-  } catch (err) {
-    console.error("Cron job failed:", err.message);
-  }
-});

@@ -1,5 +1,15 @@
 {
   "pages": {
+    "/api/users/seed/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/users/seed/route.js"
+    ],
+    "/api/medications/seed/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/medications/seed/route.js"
+    ],
     "/api/medications/cron/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

@@ -19,7 +19,7 @@ exports.modules = {
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
-eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   POST: () => (/* binding */ POST)\n/* harmony export */ });\n/* harmony import */ var _lib_dbConnect__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../../../lib/dbConnect */ \"(rsc)/./lib/dbConnect.js\");\n/* harmony import */ var mongoose__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! mongoose */ \"mongoose\");\n/* harmony import */ var _lib_models_Medication__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../../lib/models/Medication */ \"(rsc)/./lib/models/Medication.js\");\n/* harmony import */ var _lib_models_User__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../../lib/models/User */ \"(rsc)/./lib/models/User.js\");\n\n\n\n\nconst MOCK_USER_ID = \"68cb6d0e4bde3de93475ba69\"; // make sure this user exists\nasync function POST(req) {\n    await (0,_lib_dbConnect__WEBPACK_IMPORTED_MODULE_0__[\"default\"])();\n    try {\n        const med = await _lib_models_Medication__WEBPACK_IMPORTED_MODULE_2__[\"default\"].create({\n            userId: new mongoose__WEBPACK_IMPORTED_MODULE_1__.Types.ObjectId(MOCK_USER_ID),\n            name: \"Test Medication\",\n            dosage: \"1 pill\",\n            schedule: \"08:00, 20:00\"\n        });\n        return new Response(JSON.stringify({\n            message: \"Cron executed\",\n            count: 1\n        }), {\n            status: 200\n        });\n    } catch (err) {\n        console.error(err);\n        return new Response(JSON.stringify({\n            error: \"Failed to insert seed data\",\n            details: err.message\n        }), {\n            status: 500\n        });\n    }\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9hcHAvYXBpL21lZGljYXRpb25zL2Nyb24vcm91dGUuanMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7QUFBa0Q7QUFDbEI7QUFDMkI7QUFDWjtBQUUvQyxNQUFNSSxlQUFlLDRCQUE0Qiw2QkFBNkI7QUFFdkUsZUFBZUMsS0FBS0MsR0FBRztJQUM1QixNQUFNTiwwREFBU0E7SUFFZixJQUFJO1FBQ0YsTUFBTU8sTUFBTSxNQUFNTCw4REFBVUEsQ0FBQ00sTUFBTSxDQUFDO1lBQ2xDQyxRQUFRLElBQUlSLDJDQUFjLENBQUNVLFFBQVEsQ0FBQ1A7WUFDcENRLE1BQU07WUFDTkMsUUFBUTtZQUNSQyxVQUFVO1FBQ1o7UUFFQSxPQUFPLElBQUlDLFNBQ1RDLEtBQUtDLFNBQVMsQ0FBQztZQUFFQyxTQUFTO1lBQWlCQyxPQUFPO1FBQUUsSUFDcEQ7WUFBRUMsUUFBUTtRQUFJO0lBRWxCLEVBQUUsT0FBT0MsS0FBSztRQUNaQyxRQUFRQyxLQUFLLENBQUNGO1FBQ2QsT0FBTyxJQUFJTixTQUNUQyxLQUFLQyxTQUFTLENBQUM7WUFDYk0sT0FBTztZQUNQQyxTQUFTSCxJQUFJSCxPQUFPO1FBQ3RCLElBQ0E7WUFBRUUsUUFBUTtRQUFJO0lBRWxCO0FBQ0YiLCJzb3VyY2VzIjpbIkM6XFxVc2Vyc1xcVXNlclxcRGVza3RvcFxcVGVjaFRhbGtzLXByb2plY3RcXGFwcFxcYXBpXFxtZWRpY2F0aW9uc1xcY3Jvblxccm91dGUuanMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IGRiQ29ubmVjdCBmcm9tIFwiLi4vLi4vLi4vLi4vbGliL2RiQ29ubmVjdFwiO1xyXG5pbXBvcnQgbW9uZ29vc2UgZnJvbSBcIm1vbmdvb3NlXCI7XHJcbmltcG9ydCBNZWRpY2F0aW9uIGZyb20gXCIuLi8uLi8uLi8uLi9saWIvbW9kZWxzL01lZGljYXRpb25cIjtcclxuaW1wb3J0IFVzZXIgZnJvbSBcIi4uLy4uLy4uLy4uL2xpYi9tb2RlbHMvVXNlclwiO1xyXG5cclxuY29uc3QgTU9DS19VU0VSX0lEID0gXCI2OGNiNmQwZTRiZGUzZGU5MzQ3NWJhNjlcIjsgLy8gbWFrZSBzdXJlIHRoaXMgdXNlciBleGlzdHNcclxuXHJcbmV4cG9ydCBhc3luYyBmdW5jdGlvbiBQT1NUKHJlcSkge1xyXG4gIGF3YWl0IGRiQ29ubmVjdCgpO1xyXG5cclxuICB0cnkge1xyXG4gICAgY29uc3QgbWVkID0gYXdhaXQgTWVkaWNhdGlvbi5jcmVhdGUoe1xyXG4gICAgICB1c2VySWQ6IG5ldyBtb25nb29zZS5UeXBlcy5PYmplY3RJZChNT0NLX1VTRVJfSUQpLFxyXG4gICAgICBuYW1lOiBcIlRlc3QgTWVkaWNhdGlvblwiLFxyXG4gICAgICBkb3NhZ2U6IFwiMSBwaWxsXCIsXHJcbiAgICAgIHNjaGVkdWxlOiBcIjA4OjAwLCAyMDowMFwiLCAvLyBzdHJpbmcgaW5zdGVhZCBvZiBhcnJheVxyXG4gICAgfSk7XHJcblxyXG4gICAgcmV0dXJuIG5ldyBSZXNwb25zZShcclxuICAgICAgSlNPTi5zdHJpbmdpZnkoeyBtZXNzYWdlOiBcIkNyb24gZXhlY3V0ZWRcIiwgY291bnQ6IDEgfSksXHJcbiAgICAgIHsgc3RhdHVzOiAyMDAgfVxyXG4gICAgKTtcclxuICB9IGNhdGNoIChlcnIpIHtcclxuICAgIGNvbnNvbGUuZXJyb3IoZXJyKTtcclxuICAgIHJldHVybiBuZXcgUmVzcG9uc2UoXHJcbiAgICAgIEpTT04uc3RyaW5naWZ5KHtcclxuICAgICAgICBlcnJvcjogXCJGYWlsZWQgdG8gaW5zZXJ0IHNlZWQgZGF0YVwiLFxyXG4gICAgICAgIGRldGFpbHM6IGVyci5tZXNzYWdlLFxyXG4gICAgICB9KSxcclxuICAgICAgeyBzdGF0dXM6IDUwMCB9XHJcbiAgICApO1xyXG4gIH1cclxufVxyXG4iXSwibmFtZXMiOlsiZGJDb25uZWN0IiwibW9uZ29vc2UiLCJNZWRpY2F0aW9uIiwiVXNlciIsIk1PQ0tfVVNFUl9JRCIsIlBPU1QiLCJyZXEiLCJtZWQiLCJjcmVhdGUiLCJ1c2VySWQiLCJUeXBlcyIsIk9iamVjdElkIiwibmFtZSIsImRvc2FnZSIsInNjaGVkdWxlIiwiUmVzcG9uc2UiLCJKU09OIiwic3RyaW5naWZ5IiwibWVzc2FnZSIsImNvdW50Iiwic3RhdHVzIiwiZXJyIiwiY29uc29sZSIsImVycm9yIiwiZGV0YWlscyJdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(rsc)/./app/api/medications/cron/route.js\n");
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   POST: () => (/* binding */ POST)\n/* harmony export */ });\n/* harmony import */ var _lib_dbConnect__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../../../lib/dbConnect */ \"(rsc)/./lib/dbConnect.js\");\n/* harmony import */ var mongoose__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! mongoose */ \"mongoose\");\n/* harmony import */ var _lib_models_Medication__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../../lib/models/Medication */ \"(rsc)/./lib/models/Medication.js\");\n/* harmony import */ var _lib_sender__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../../lib/sender */ \"(rsc)/./lib/sender.js\");\n\n\n\n\nconst MOCK_USER_ID = \"68cb6d0e4bde3de93475ba69\"; // make sure this user exists\nasync function POST(req) {\n    await (0,_lib_dbConnect__WEBPACK_IMPORTED_MODULE_0__[\"default\"])();\n    try {\n        // Check if the medication already exists\n        const existing = await _lib_models_Medication__WEBPACK_IMPORTED_MODULE_2__[\"default\"].findOne({\n            userId: MOCK_USER_ID,\n            name: \"Test Medication\"\n        });\n        let count = 0;\n        if (!existing) {\n            await _lib_models_Medication__WEBPACK_IMPORTED_MODULE_2__[\"default\"].create({\n                userId: new mongoose__WEBPACK_IMPORTED_MODULE_1__.Types.ObjectId(MOCK_USER_ID),\n                name: \"Test Medication\",\n                dosage: \"1 pill\",\n                schedule: \"08:00, 20:00\",\n                status: \"pending\"\n            });\n            count = 1;\n            // Send email notification (optional)\n            try {\n                await (0,_lib_sender__WEBPACK_IMPORTED_MODULE_3__.sendEmail)({\n                    to: \"user@example.com\",\n                    subject: \"New Medication Added\",\n                    text: \"A new test medication was added to your schedule.\"\n                });\n            } catch (emailErr) {\n                console.error(\"Failed to send email:\", emailErr.message);\n            }\n        }\n        return new Response(JSON.stringify({\n            message: \"Cron executed\",\n            count\n        }), {\n            status: 200\n        });\n    } catch (err) {\n        console.error(err);\n        return new Response(JSON.stringify({\n            error: \"Failed to insert seed data\",\n            details: err.message\n        }), {\n            status: 500\n        });\n    }\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9hcHAvYXBpL21lZGljYXRpb25zL2Nyb24vcm91dGUuanMiLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7QUFBa0Q7QUFDbEI7QUFDMkI7QUFDUjtBQUVuRCxNQUFNSSxlQUFlLDRCQUE0Qiw2QkFBNkI7QUFFdkUsZUFBZUMsS0FBS0MsR0FBRztJQUM1QixNQUFNTiwwREFBU0E7SUFFZixJQUFJO1FBQ0YseUNBQXlDO1FBQ3pDLE1BQU1PLFdBQVcsTUFBTUwsOERBQVVBLENBQUNNLE9BQU8sQ0FBQztZQUN4Q0MsUUFBUUw7WUFDUk0sTUFBTTtRQUNSO1FBRUEsSUFBSUMsUUFBUTtRQUVaLElBQUksQ0FBQ0osVUFBVTtZQUNiLE1BQU1MLDhEQUFVQSxDQUFDVSxNQUFNLENBQUM7Z0JBQ3RCSCxRQUFRLElBQUlSLDJDQUFjLENBQUNhLFFBQVEsQ0FBQ1Y7Z0JBQ3BDTSxNQUFNO2dCQUNOSyxRQUFRO2dCQUNSQyxVQUFVO2dCQUNWQyxRQUFRO1lBQ1Y7WUFFQU4sUUFBUTtZQUVSLHFDQUFxQztZQUNyQyxJQUFJO2dCQUNGLE1BQU1SLHNEQUFTQSxDQUFDO29CQUNkZSxJQUFJO29CQUNKQyxTQUFTO29CQUNUQyxNQUFNO2dCQUNSO1lBQ0YsRUFBRSxPQUFPQyxVQUFVO2dCQUNqQkMsUUFBUUMsS0FBSyxDQUFDLHlCQUF5QkYsU0FBU0csT0FBTztZQUN6RDtRQUNGO1FBRUEsT0FBTyxJQUFJQyxTQUFTQyxLQUFLQyxTQUFTLENBQUM7WUFBRUgsU0FBUztZQUFpQmI7UUFBTSxJQUFJO1lBQ3ZFTSxRQUFRO1FBQ1Y7SUFDRixFQUFFLE9BQU9XLEtBQUs7UUFDWk4sUUFBUUMsS0FBSyxDQUFDSztRQUNkLE9BQU8sSUFBSUgsU0FDVEMsS0FBS0MsU0FBUyxDQUFDO1lBQ2JKLE9BQU87WUFDUE0sU0FBU0QsSUFBSUosT0FBTztRQUN0QixJQUNBO1lBQUVQLFFBQVE7UUFBSTtJQUVsQjtBQUNGIiwic291cmNlcyI6WyJDOlxcVXNlcnNcXFVzZXJcXERlc2t0b3BcXFRlY2hUYWxrcy1wcm9qZWN0XFxhcHBcXGFwaVxcbWVkaWNhdGlvbnNcXGNyb25cXHJvdXRlLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBkYkNvbm5lY3QgZnJvbSBcIi4uLy4uLy4uLy4uL2xpYi9kYkNvbm5lY3RcIjtcclxuaW1wb3J0IG1vbmdvb3NlIGZyb20gXCJtb25nb29zZVwiO1xyXG5pbXBvcnQgTWVkaWNhdGlvbiBmcm9tIFwiLi4vLi4vLi4vLi4vbGliL21vZGVscy9NZWRpY2F0aW9uXCI7XHJcbmltcG9ydCB7IHNlbmRFbWFpbCB9IGZyb20gXCIuLi8uLi8uLi8uLi9saWIvc2VuZGVyXCI7XHJcblxyXG5jb25zdCBNT0NLX1VTRVJfSUQgPSBcIjY4Y2I2ZDBlNGJkZTNkZTkzNDc1YmE2OVwiOyAvLyBtYWtlIHN1cmUgdGhpcyB1c2VyIGV4aXN0c1xyXG5cclxuZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIFBPU1QocmVxKSB7XHJcbiAgYXdhaXQgZGJDb25uZWN0KCk7XHJcblxyXG4gIHRyeSB7XHJcbiAgICAvLyBDaGVjayBpZiB0aGUgbWVkaWNhdGlvbiBhbHJlYWR5IGV4aXN0c1xyXG4gICAgY29uc3QgZXhpc3RpbmcgPSBhd2FpdCBNZWRpY2F0aW9uLmZpbmRPbmUoe1xyXG4gICAgICB1c2VySWQ6IE1PQ0tfVVNFUl9JRCxcclxuICAgICAgbmFtZTogXCJUZXN0IE1lZGljYXRpb25cIixcclxuICAgIH0pO1xyXG5cclxuICAgIGxldCBjb3VudCA9IDA7XHJcblxyXG4gICAgaWYgKCFleGlzdGluZykge1xyXG4gICAgICBhd2FpdCBNZWRpY2F0aW9uLmNyZWF0ZSh7XHJcbiAgICAgICAgdXNlcklkOiBuZXcgbW9uZ29vc2UuVHlwZXMuT2JqZWN0SWQoTU9DS19VU0VSX0lEKSxcclxuICAgICAgICBuYW1lOiBcIlRlc3QgTWVkaWNhdGlvblwiLFxyXG4gICAgICAgIGRvc2FnZTogXCIxIHBpbGxcIixcclxuICAgICAgICBzY2hlZHVsZTogXCIwODowMCwgMjA6MDBcIixcclxuICAgICAgICBzdGF0dXM6IFwicGVuZGluZ1wiLFxyXG4gICAgICB9KTtcclxuXHJcbiAgICAgIGNvdW50ID0gMTtcclxuXHJcbiAgICAgIC8vIFNlbmQgZW1haWwgbm90aWZpY2F0aW9uIChvcHRpb25hbClcclxuICAgICAgdHJ5IHtcclxuICAgICAgICBhd2FpdCBzZW5kRW1haWwoe1xyXG4gICAgICAgICAgdG86IFwidXNlckBleGFtcGxlLmNvbVwiLCAvLyByZXBsYWNlIHdpdGggcmVhbCBlbWFpbFxyXG4gICAgICAgICAgc3ViamVjdDogXCJOZXcgTWVkaWNhdGlvbiBBZGRlZFwiLFxyXG4gICAgICAgICAgdGV4dDogXCJBIG5ldyB0ZXN0IG1lZGljYXRpb24gd2FzIGFkZGVkIHRvIHlvdXIgc2NoZWR1bGUuXCIsXHJcbiAgICAgICAgfSk7XHJcbiAgICAgIH0gY2F0Y2ggKGVtYWlsRXJyKSB7XHJcbiAgICAgICAgY29uc29sZS5lcnJvcihcIkZhaWxlZCB0byBzZW5kIGVtYWlsOlwiLCBlbWFpbEVyci5tZXNzYWdlKTtcclxuICAgICAgfVxyXG4gICAgfVxyXG5cclxuICAgIHJldHVybiBuZXcgUmVzcG9uc2UoSlNPTi5zdHJpbmdpZnkoeyBtZXNzYWdlOiBcIkNyb24gZXhlY3V0ZWRcIiwgY291bnQgfSksIHtcclxuICAgICAgc3RhdHVzOiAyMDAsXHJcbiAgICB9KTtcclxuICB9IGNhdGNoIChlcnIpIHtcclxuICAgIGNvbnNvbGUuZXJyb3IoZXJyKTtcclxuICAgIHJldHVybiBuZXcgUmVzcG9uc2UoXHJcbiAgICAgIEpTT04uc3RyaW5naWZ5KHtcclxuICAgICAgICBlcnJvcjogXCJGYWlsZWQgdG8gaW5zZXJ0IHNlZWQgZGF0YVwiLFxyXG4gICAgICAgIGRldGFpbHM6IGVyci5tZXNzYWdlLFxyXG4gICAgICB9KSxcclxuICAgICAgeyBzdGF0dXM6IDUwMCB9XHJcbiAgICApO1xyXG4gIH1cclxufVxyXG4iXSwibmFtZXMiOlsiZGJDb25uZWN0IiwibW9uZ29vc2UiLCJNZWRpY2F0aW9uIiwic2VuZEVtYWlsIiwiTU9DS19VU0VSX0lEIiwiUE9TVCIsInJlcSIsImV4aXN0aW5nIiwiZmluZE9uZSIsInVzZXJJZCIsIm5hbWUiLCJjb3VudCIsImNyZWF0ZSIsIlR5cGVzIiwiT2JqZWN0SWQiLCJkb3NhZ2UiLCJzY2hlZHVsZSIsInN0YXR1cyIsInRvIiwic3ViamVjdCIsInRleHQiLCJlbWFpbEVyciIsImNvbnNvbGUiLCJlcnJvciIsIm1lc3NhZ2UiLCJSZXNwb25zZSIsIkpTT04iLCJzdHJpbmdpZnkiLCJlcnIiLCJkZXRhaWxzIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///(rsc)/./app/api/medications/cron/route.js\n");
 
 /***/ }),
 
@@ -41,18 +41,18 @@ eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpac
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
-eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (__WEBPACK_DEFAULT_EXPORT__)\n/* harmony export */ });\n/* harmony import */ var mongoose__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! mongoose */ \"mongoose\");\n\nconst MedicationSchema = new mongoose__WEBPACK_IMPORTED_MODULE_0__.Schema({\n    userId: {\n        type: mongoose__WEBPACK_IMPORTED_MODULE_0__.Schema.Types.ObjectId,\n        ref: \"User\",\n        required: true\n    },\n    name: {\n        type: String,\n        required: true\n    },\n    dosage: {\n        type: String,\n        required: true\n    },\n    schedule: {\n        type: String,\n        required: true\n    },\n    status: {\n        type: String,\n        enum: [\n            \"pending\",\n            \"taken\",\n            \"missed\"\n        ],\n        default: \"pending\"\n    }\n});\nconst Medication = mongoose__WEBPACK_IMPORTED_MODULE_0__.models.Medication || mongoose__WEBPACK_IMPORTED_MODULE_0__.model(\"Medication\", MedicationSchema);\n/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (Medication);\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9saWIvbW9kZWxzL01lZGljYXRpb24uanMiLCJtYXBwaW5ncyI6Ijs7Ozs7QUFBZ0M7QUFFaEMsTUFBTUMsbUJBQW1CLElBQUlELDRDQUFlLENBQUM7SUFDM0NHLFFBQVE7UUFBRUMsTUFBTUosNENBQWUsQ0FBQ0ssS0FBSyxDQUFDQyxRQUFRO1FBQUVDLEtBQUs7UUFBUUMsVUFBVTtJQUFLO0lBQzVFQyxNQUFNO1FBQUVMLE1BQU1NO1FBQVFGLFVBQVU7SUFBSztJQUNyQ0csUUFBUTtRQUFFUCxNQUFNTTtRQUFRRixVQUFVO0lBQUs7SUFDdkNJLFVBQVU7UUFBRVIsTUFBTU07UUFBUUYsVUFBVTtJQUFLO0lBQ3pDSyxRQUFRO1FBQ05ULE1BQU1NO1FBQ05JLE1BQU07WUFBQztZQUFXO1lBQVM7U0FBUztRQUNwQ0MsU0FBUztJQUNYO0FBQ0Y7QUFFQSxNQUFNQyxhQUNKaEIsNENBQWUsQ0FBQ2dCLFVBQVUsSUFBSWhCLDJDQUFjLENBQUMsY0FBY0M7QUFFN0QsaUVBQWVlLFVBQVVBLEVBQUMiLCJzb3VyY2VzIjpbIkM6XFxVc2Vyc1xcVXNlclxcRGVza3RvcFxcVGVjaFRhbGtzLXByb2plY3RcXGxpYlxcbW9kZWxzXFxNZWRpY2F0aW9uLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBtb25nb29zZSBmcm9tIFwibW9uZ29vc2VcIjtcclxuXHJcbmNvbnN0IE1lZGljYXRpb25TY2hlbWEgPSBuZXcgbW9uZ29vc2UuU2NoZW1hKHtcclxuICB1c2VySWQ6IHsgdHlwZTogbW9uZ29vc2UuU2NoZW1hLlR5cGVzLk9iamVjdElkLCByZWY6IFwiVXNlclwiLCByZXF1aXJlZDogdHJ1ZSB9LFxyXG4gIG5hbWU6IHsgdHlwZTogU3RyaW5nLCByZXF1aXJlZDogdHJ1ZSB9LFxyXG4gIGRvc2FnZTogeyB0eXBlOiBTdHJpbmcsIHJlcXVpcmVkOiB0cnVlIH0sXHJcbiAgc2NoZWR1bGU6IHsgdHlwZTogU3RyaW5nLCByZXF1aXJlZDogdHJ1ZSB9LFxyXG4gIHN0YXR1czoge1xyXG4gICAgdHlwZTogU3RyaW5nLFxyXG4gICAgZW51bTogW1wicGVuZGluZ1wiLCBcInRha2VuXCIsIFwibWlzc2VkXCJdLFxyXG4gICAgZGVmYXVsdDogXCJwZW5kaW5nXCIsXHJcbiAgfSxcclxufSk7XHJcblxyXG5jb25zdCBNZWRpY2F0aW9uID1cclxuICBtb25nb29zZS5tb2RlbHMuTWVkaWNhdGlvbiB8fCBtb25nb29zZS5tb2RlbChcIk1lZGljYXRpb25cIiwgTWVkaWNhdGlvblNjaGVtYSk7XHJcblxyXG5leHBvcnQgZGVmYXVsdCBNZWRpY2F0aW9uO1xyXG4iXSwibmFtZXMiOlsibW9uZ29vc2UiLCJNZWRpY2F0aW9uU2NoZW1hIiwiU2NoZW1hIiwidXNlcklkIiwidHlwZSIsIlR5cGVzIiwiT2JqZWN0SWQiLCJyZWYiLCJyZXF1aXJlZCIsIm5hbWUiLCJTdHJpbmciLCJkb3NhZ2UiLCJzY2hlZHVsZSIsInN0YXR1cyIsImVudW0iLCJkZWZhdWx0IiwiTWVkaWNhdGlvbiIsIm1vZGVscyIsIm1vZGVsIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///(rsc)/./lib/models/Medication.js\n");
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (__WEBPACK_DEFAULT_EXPORT__)\n/* harmony export */ });\n/* harmony import */ var mongoose__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! mongoose */ \"mongoose\");\n\nconst MedicationSchema = new mongoose__WEBPACK_IMPORTED_MODULE_0__.Schema({\n    userId: {\n        type: mongoose__WEBPACK_IMPORTED_MODULE_0__.Schema.Types.ObjectId,\n        ref: \"User\",\n        required: true\n    },\n    name: {\n        type: String,\n        required: true\n    },\n    dosage: {\n        type: String,\n        required: true\n    },\n    schedule: {\n        type: String,\n        required: true\n    },\n    status: {\n        type: String,\n        enum: [\n            \"pending\",\n            \"taken\"\n        ],\n        default: \"pending\"\n    }\n});\n/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (mongoose__WEBPACK_IMPORTED_MODULE_0__.models.Medication || mongoose__WEBPACK_IMPORTED_MODULE_0__.model(\"Medication\", MedicationSchema));\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9saWIvbW9kZWxzL01lZGljYXRpb24uanMiLCJtYXBwaW5ncyI6Ijs7Ozs7QUFBZ0M7QUFFaEMsTUFBTUMsbUJBQW1CLElBQUlELDRDQUFlLENBQUM7SUFDM0NHLFFBQVE7UUFBRUMsTUFBTUosNENBQWUsQ0FBQ0ssS0FBSyxDQUFDQyxRQUFRO1FBQUVDLEtBQUs7UUFBUUMsVUFBVTtJQUFLO0lBQzVFQyxNQUFNO1FBQUVMLE1BQU1NO1FBQVFGLFVBQVU7SUFBSztJQUNyQ0csUUFBUTtRQUFFUCxNQUFNTTtRQUFRRixVQUFVO0lBQUs7SUFDdkNJLFVBQVU7UUFBRVIsTUFBTU07UUFBUUYsVUFBVTtJQUFLO0lBQ3pDSyxRQUFRO1FBQUVULE1BQU1NO1FBQVFJLE1BQU07WUFBQztZQUFXO1NBQVE7UUFBRUMsU0FBUztJQUFVO0FBQ3pFO0FBRUEsaUVBQWVmLDRDQUFlLENBQUNpQixVQUFVLElBQ3ZDakIsMkNBQWMsQ0FBQyxjQUFjQyxpQkFBaUJBLEVBQUMiLCJzb3VyY2VzIjpbIkM6XFxVc2Vyc1xcVXNlclxcRGVza3RvcFxcVGVjaFRhbGtzLXByb2plY3RcXGxpYlxcbW9kZWxzXFxNZWRpY2F0aW9uLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBtb25nb29zZSBmcm9tIFwibW9uZ29vc2VcIjtcclxuXHJcbmNvbnN0IE1lZGljYXRpb25TY2hlbWEgPSBuZXcgbW9uZ29vc2UuU2NoZW1hKHtcclxuICB1c2VySWQ6IHsgdHlwZTogbW9uZ29vc2UuU2NoZW1hLlR5cGVzLk9iamVjdElkLCByZWY6IFwiVXNlclwiLCByZXF1aXJlZDogdHJ1ZSB9LFxyXG4gIG5hbWU6IHsgdHlwZTogU3RyaW5nLCByZXF1aXJlZDogdHJ1ZSB9LFxyXG4gIGRvc2FnZTogeyB0eXBlOiBTdHJpbmcsIHJlcXVpcmVkOiB0cnVlIH0sXHJcbiAgc2NoZWR1bGU6IHsgdHlwZTogU3RyaW5nLCByZXF1aXJlZDogdHJ1ZSB9LCAvLyBub3cgYSBzdHJpbmcgbGlrZSBcIjA4OjAwLCAyMDowMFwiXHJcbiAgc3RhdHVzOiB7IHR5cGU6IFN0cmluZywgZW51bTogW1wicGVuZGluZ1wiLCBcInRha2VuXCJdLCBkZWZhdWx0OiBcInBlbmRpbmdcIiB9LFxyXG59KTtcclxuXHJcbmV4cG9ydCBkZWZhdWx0IG1vbmdvb3NlLm1vZGVscy5NZWRpY2F0aW9uIHx8XHJcbiAgbW9uZ29vc2UubW9kZWwoXCJNZWRpY2F0aW9uXCIsIE1lZGljYXRpb25TY2hlbWEpO1xyXG4iXSwibmFtZXMiOlsibW9uZ29vc2UiLCJNZWRpY2F0aW9uU2NoZW1hIiwiU2NoZW1hIiwidXNlcklkIiwidHlwZSIsIlR5cGVzIiwiT2JqZWN0SWQiLCJyZWYiLCJyZXF1aXJlZCIsIm5hbWUiLCJTdHJpbmciLCJkb3NhZ2UiLCJzY2hlZHVsZSIsInN0YXR1cyIsImVudW0iLCJkZWZhdWx0IiwibW9kZWxzIiwiTWVkaWNhdGlvbiIsIm1vZGVsIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///(rsc)/./lib/models/Medication.js\n");
 
 /***/ }),
 
-/***/ "(rsc)/./lib/models/User.js":
-/*!****************************!*\
-  !*** ./lib/models/User.js ***!
-  \****************************/
+/***/ "(rsc)/./lib/sender.js":
+/*!***********************!*\
+  !*** ./lib/sender.js ***!
+  \***********************/
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
-eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (__WEBPACK_DEFAULT_EXPORT__)\n/* harmony export */ });\n/* harmony import */ var mongoose__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! mongoose */ \"mongoose\");\n\nconst UserSchema = new mongoose__WEBPACK_IMPORTED_MODULE_0__.Schema({\n    name: {\n        type: String,\n        required: true\n    },\n    email: {\n        type: String,\n        required: true,\n        unique: true\n    },\n    password: {\n        type: String\n    }\n});\n/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (mongoose__WEBPACK_IMPORTED_MODULE_0__.models.User || mongoose__WEBPACK_IMPORTED_MODULE_0__.model(\"User\", UserSchema));\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9saWIvbW9kZWxzL1VzZXIuanMiLCJtYXBwaW5ncyI6Ijs7Ozs7QUFBZ0M7QUFFaEMsTUFBTUMsYUFBYSxJQUFJRCw0Q0FBZSxDQUFDO0lBQ3JDRyxNQUFNO1FBQUVDLE1BQU1DO1FBQVFDLFVBQVU7SUFBSztJQUNyQ0MsT0FBTztRQUFFSCxNQUFNQztRQUFRQyxVQUFVO1FBQU1FLFFBQVE7SUFBSztJQUNwREMsVUFBVTtRQUFFTCxNQUFNQztJQUFPO0FBQzNCO0FBRUEsaUVBQWVMLDRDQUFlLENBQUNXLElBQUksSUFBSVgsMkNBQWMsQ0FBQyxRQUFRQyxXQUFXQSxFQUFDIiwic291cmNlcyI6WyJDOlxcVXNlcnNcXFVzZXJcXERlc2t0b3BcXFRlY2hUYWxrcy1wcm9qZWN0XFxsaWJcXG1vZGVsc1xcVXNlci5qcyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgbW9uZ29vc2UgZnJvbSBcIm1vbmdvb3NlXCI7XHJcblxyXG5jb25zdCBVc2VyU2NoZW1hID0gbmV3IG1vbmdvb3NlLlNjaGVtYSh7XHJcbiAgbmFtZTogeyB0eXBlOiBTdHJpbmcsIHJlcXVpcmVkOiB0cnVlIH0sXHJcbiAgZW1haWw6IHsgdHlwZTogU3RyaW5nLCByZXF1aXJlZDogdHJ1ZSwgdW5pcXVlOiB0cnVlIH0sXHJcbiAgcGFzc3dvcmQ6IHsgdHlwZTogU3RyaW5nIH0sIC8vIG9wdGlvbmFsIGZvciB0ZXN0aW5nXHJcbn0pO1xyXG5cclxuZXhwb3J0IGRlZmF1bHQgbW9uZ29vc2UubW9kZWxzLlVzZXIgfHwgbW9uZ29vc2UubW9kZWwoXCJVc2VyXCIsIFVzZXJTY2hlbWEpO1xyXG4iXSwibmFtZXMiOlsibW9uZ29vc2UiLCJVc2VyU2NoZW1hIiwiU2NoZW1hIiwibmFtZSIsInR5cGUiLCJTdHJpbmciLCJyZXF1aXJlZCIsImVtYWlsIiwidW5pcXVlIiwicGFzc3dvcmQiLCJtb2RlbHMiLCJVc2VyIiwibW9kZWwiXSwiaWdub3JlTGlzdCI6W10sInNvdXJjZVJvb3QiOiIifQ==\n//# sourceURL=webpack-internal:///(rsc)/./lib/models/User.js\n");
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   sendEmail: () => (/* binding */ sendEmail),\n/* harmony export */   sendNotification: () => (/* binding */ sendNotification)\n/* harmony export */ });\n/* harmony import */ var axios__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! axios */ \"(rsc)/./node_modules/axios/lib/axios.js\");\n\nasync function sendEmail({ to, subject, text }) {\n    const API_KEY = process.env.SENDER_API_KEY;\n    const FROM_EMAIL = \"your-email@example.com\"; // replace with verified Sender email\n    if (!API_KEY) throw new Error(\"Sender API key not set\");\n    await axios__WEBPACK_IMPORTED_MODULE_0__[\"default\"].post(\"https://api.sender.net/v2/email/send\", {\n        to: [\n            {\n                email: to\n            }\n        ],\n        from: {\n            email: FROM_EMAIL\n        },\n        subject,\n        text\n    }, {\n        headers: {\n            Authorization: `Bearer ${API_KEY}`,\n            \"Content-Type\": \"application/json\"\n        }\n    });\n}\n// Add this function to match your route import\nasync function sendNotification(to, subject, message) {\n    // Call sendEmail internally\n    await sendEmail({\n        to,\n        subject,\n        text: message\n    });\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9saWIvc2VuZGVyLmpzIiwibWFwcGluZ3MiOiI7Ozs7OztBQUEwQjtBQUVuQixlQUFlQyxVQUFVLEVBQUVDLEVBQUUsRUFBRUMsT0FBTyxFQUFFQyxJQUFJLEVBQUU7SUFDbkQsTUFBTUMsVUFBVUMsUUFBUUMsR0FBRyxDQUFDQyxjQUFjO0lBQzFDLE1BQU1DLGFBQWEsMEJBQTBCLHFDQUFxQztJQUVsRixJQUFJLENBQUNKLFNBQVMsTUFBTSxJQUFJSyxNQUFNO0lBRTlCLE1BQU1WLDZDQUFLQSxDQUFDVyxJQUFJLENBQ2Qsd0NBQ0E7UUFDRVQsSUFBSTtZQUFDO2dCQUFFVSxPQUFPVjtZQUFHO1NBQUU7UUFDbkJXLE1BQU07WUFBRUQsT0FBT0g7UUFBVztRQUMxQk47UUFDQUM7SUFDRixHQUNBO1FBQ0VVLFNBQVM7WUFDUEMsZUFBZSxDQUFDLE9BQU8sRUFBRVYsU0FBUztZQUNsQyxnQkFBZ0I7UUFDbEI7SUFDRjtBQUVKO0FBRUEsK0NBQStDO0FBQ3hDLGVBQWVXLGlCQUFpQmQsRUFBRSxFQUFFQyxPQUFPLEVBQUVjLE9BQU87SUFDekQsNEJBQTRCO0lBQzVCLE1BQU1oQixVQUFVO1FBQUVDO1FBQUlDO1FBQVNDLE1BQU1hO0lBQVE7QUFDL0MiLCJzb3VyY2VzIjpbIkM6XFxVc2Vyc1xcVXNlclxcRGVza3RvcFxcVGVjaFRhbGtzLXByb2plY3RcXGxpYlxcc2VuZGVyLmpzIl0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCBheGlvcyBmcm9tIFwiYXhpb3NcIjtcclxuXHJcbmV4cG9ydCBhc3luYyBmdW5jdGlvbiBzZW5kRW1haWwoeyB0bywgc3ViamVjdCwgdGV4dCB9KSB7XHJcbiAgY29uc3QgQVBJX0tFWSA9IHByb2Nlc3MuZW52LlNFTkRFUl9BUElfS0VZO1xyXG4gIGNvbnN0IEZST01fRU1BSUwgPSBcInlvdXItZW1haWxAZXhhbXBsZS5jb21cIjsgLy8gcmVwbGFjZSB3aXRoIHZlcmlmaWVkIFNlbmRlciBlbWFpbFxyXG5cclxuICBpZiAoIUFQSV9LRVkpIHRocm93IG5ldyBFcnJvcihcIlNlbmRlciBBUEkga2V5IG5vdCBzZXRcIik7XHJcblxyXG4gIGF3YWl0IGF4aW9zLnBvc3QoXHJcbiAgICBcImh0dHBzOi8vYXBpLnNlbmRlci5uZXQvdjIvZW1haWwvc2VuZFwiLFxyXG4gICAge1xyXG4gICAgICB0bzogW3sgZW1haWw6IHRvIH1dLFxyXG4gICAgICBmcm9tOiB7IGVtYWlsOiBGUk9NX0VNQUlMIH0sXHJcbiAgICAgIHN1YmplY3QsXHJcbiAgICAgIHRleHQsXHJcbiAgICB9LFxyXG4gICAge1xyXG4gICAgICBoZWFkZXJzOiB7XHJcbiAgICAgICAgQXV0aG9yaXphdGlvbjogYEJlYXJlciAke0FQSV9LRVl9YCxcclxuICAgICAgICBcIkNvbnRlbnQtVHlwZVwiOiBcImFwcGxpY2F0aW9uL2pzb25cIixcclxuICAgICAgfSxcclxuICAgIH1cclxuICApO1xyXG59XHJcblxyXG4vLyBBZGQgdGhpcyBmdW5jdGlvbiB0byBtYXRjaCB5b3VyIHJvdXRlIGltcG9ydFxyXG5leHBvcnQgYXN5bmMgZnVuY3Rpb24gc2VuZE5vdGlmaWNhdGlvbih0bywgc3ViamVjdCwgbWVzc2FnZSkge1xyXG4gIC8vIENhbGwgc2VuZEVtYWlsIGludGVybmFsbHlcclxuICBhd2FpdCBzZW5kRW1haWwoeyB0bywgc3ViamVjdCwgdGV4dDogbWVzc2FnZSB9KTtcclxufVxyXG4iXSwibmFtZXMiOlsiYXhpb3MiLCJzZW5kRW1haWwiLCJ0byIsInN1YmplY3QiLCJ0ZXh0IiwiQVBJX0tFWSIsInByb2Nlc3MiLCJlbnYiLCJTRU5ERVJfQVBJX0tFWSIsIkZST01fRU1BSUwiLCJFcnJvciIsInBvc3QiLCJlbWFpbCIsImZyb20iLCJoZWFkZXJzIiwiQXV0aG9yaXphdGlvbiIsInNlbmROb3RpZmljYXRpb24iLCJtZXNzYWdlIl0sImlnbm9yZUxpc3QiOltdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///(rsc)/./lib/sender.js\n");
 
 /***/ }),
 
@@ -109,6 +109,82 @@ module.exports = require("next/dist/server/app-render/work-unit-async-storage.ex
 
 /***/ }),
 
+/***/ "?d272":
+/*!********************************!*\
+  !*** supports-color (ignored) ***!
+  \********************************/
+/***/ (() => {
+
+/* (ignored) */
+
+/***/ }),
+
+/***/ "assert":
+/*!*************************!*\
+  !*** external "assert" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("assert");
+
+/***/ }),
+
+/***/ "crypto":
+/*!*************************!*\
+  !*** external "crypto" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("crypto");
+
+/***/ }),
+
+/***/ "events":
+/*!*************************!*\
+  !*** external "events" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("events");
+
+/***/ }),
+
+/***/ "fs":
+/*!*********************!*\
+  !*** external "fs" ***!
+  \*********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("fs");
+
+/***/ }),
+
+/***/ "http":
+/*!***********************!*\
+  !*** external "http" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("http");
+
+/***/ }),
+
+/***/ "https":
+/*!************************!*\
+  !*** external "https" ***!
+  \************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("https");
+
+/***/ }),
+
 /***/ "mongoose":
 /*!***************************!*\
   !*** external "mongoose" ***!
@@ -162,6 +238,72 @@ module.exports = require("next/dist/shared/lib/no-fallback-error.external");
 "use strict";
 module.exports = require("next/dist/shared/lib/router/utils/app-paths");
 
+/***/ }),
+
+/***/ "path":
+/*!***********************!*\
+  !*** external "path" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("path");
+
+/***/ }),
+
+/***/ "stream":
+/*!*************************!*\
+  !*** external "stream" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("stream");
+
+/***/ }),
+
+/***/ "tty":
+/*!**********************!*\
+  !*** external "tty" ***!
+  \**********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("tty");
+
+/***/ }),
+
+/***/ "url":
+/*!**********************!*\
+  !*** external "url" ***!
+  \**********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("url");
+
+/***/ }),
+
+/***/ "util":
+/*!***********************!*\
+  !*** external "util" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("util");
+
+/***/ }),
+
+/***/ "zlib":
+/*!***********************!*\
+  !*** external "zlib" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("zlib");
+
 /***/ })
 
 };
@@ -171,7 +313,7 @@ module.exports = require("next/dist/shared/lib/router/utils/app-paths");
 var __webpack_require__ = require("../../../../webpack-runtime.js");
 __webpack_require__.C(exports);
 var __webpack_exec__ = (moduleId) => (__webpack_require__(__webpack_require__.s = moduleId))
-var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next"], () => (__webpack_exec__("(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Fmedications%2Fcron%2Froute&page=%2Fapi%2Fmedications%2Fcron%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Fmedications%2Fcron%2Froute.js&appDir=C%3A%5CUsers%5CUser%5CDesktop%5CTechTalks-project%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5CUser%5CDesktop%5CTechTalks-project&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!")));
+var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next","vendor-chunks/axios","vendor-chunks/asynckit","vendor-chunks/math-intrinsics","vendor-chunks/es-errors","vendor-chunks/call-bind-apply-helpers","vendor-chunks/debug","vendor-chunks/get-proto","vendor-chunks/mime-db","vendor-chunks/has-symbols","vendor-chunks/gopd","vendor-chunks/function-bind","vendor-chunks/form-data","vendor-chunks/follow-redirects","vendor-chunks/proxy-from-env","vendor-chunks/ms","vendor-chunks/mime-types","vendor-chunks/hasown","vendor-chunks/has-tostringtag","vendor-chunks/get-intrinsic","vendor-chunks/es-set-tostringtag","vendor-chunks/es-object-atoms","vendor-chunks/es-define-property","vendor-chunks/dunder-proto","vendor-chunks/delayed-stream","vendor-chunks/combined-stream"], () => (__webpack_exec__("(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader/index.js?name=app%2Fapi%2Fmedications%2Fcron%2Froute&page=%2Fapi%2Fmedications%2Fcron%2Froute&appPaths=&pagePath=private-next-app-dir%2Fapi%2Fmedications%2Fcron%2Froute.js&appDir=C%3A%5CUsers%5CUser%5CDesktop%5CTechTalks-project%5Capp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=C%3A%5CUsers%5CUser%5CDesktop%5CTechTalks-project&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D&isGlobalNotFoundEnabled=!")));
 module.exports = __webpack_exports__;
 
 })();
