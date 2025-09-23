@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import resend from "@/utils/resend"; // your Resend init
+import resend from "../../../utils/resend"; // your Resend init
 
 export async function POST(req) {
   try {

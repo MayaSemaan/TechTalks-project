@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../../../../utils/dbConnect.js";
-import Report from "../../../../models/reports.js";
+import connectToDB from "../../../../../lib/db.js";
+import Report from "../../../../../models/reports.js";
 
 // Connect to MongoDB
-await connectDB();
+await connectToDB();
 
 export async function GET(req, { params }) {
   try {

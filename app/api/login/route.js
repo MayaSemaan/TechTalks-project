@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import connectToDB from "@/lib/db";
-import User from "@/models/User";
+import connectToDB from "../../../lib/db.js";
+import User from "../../../models/User";
 import jwt from "jsonwebtoken";
 
 export async function POST(req) {

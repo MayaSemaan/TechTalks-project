@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import connectToDB from "@/lib/db";
+import connectToDB from "../../../lib/db.js";
 import User from "../../../models/User";
 
 export async function POST(req) {
@@ -24,9 +24,18 @@ export async function POST(req) {
     const user = new User({ name, email, password: hashed, role });
     await user.save();
 
-    return new Response(JSON.stringify({ msg: "User registered" }), {
-      status: 201,
-    });
+    return new Response(
+      JSON.stringify({
+        msg: "User registered",
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      }),
+      { status: 201 }
+    );
   } catch (err) {
     return new Response(
       JSON.stringify({ msg: "Server error", error: err.message }),
