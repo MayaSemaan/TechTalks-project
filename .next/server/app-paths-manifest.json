@@ -1,0 +1,5 @@
+{
+  "/api/users/seed/route": "app/api/users/seed/route.js",
+  "/api/medications/seed/route": "app/api/medications/seed/route.js",
+  "/api/medications/cron/route": "app/api/medications/cron/route.js"
+}
