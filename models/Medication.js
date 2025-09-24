@@ -10,11 +10,16 @@ const MedicationSchema = new mongoose.Schema(
     name: { type: String, required: true },
     dosage: { type: String, required: true },
     schedule: { type: String, required: true },
-    status: { type: String, enum: ["taken", "missed"], default: "missed" },
+    status: {
+      type: String,
+      enum: ["pending", "taken", "missed"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );
 
 const Medication =
   mongoose.models.Medication || mongoose.model("Medication", MedicationSchema);
+
 export default Medication;
