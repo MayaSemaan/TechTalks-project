@@ -1,56 +1,37 @@
-import dbConnect from "../../../../lib/dbConnect";
-import mongoose from "mongoose";
-import Medication from "../../../../lib/models/Medication";
-import { sendEmail } from "../../../../lib/sender";
+import { NextResponse } from "next/server";
+import dbConnect from "../../../../lib/db.js";
+import Medication from "../../../../models/Medication.js";
+import { sendNotification } from "../../sender/route.js"; // using your sender API
 
-const MOCK_USER_ID = "68cb6d0e4bde3de93475ba69"; // make sure this user exists
-
-export async function POST(req) {
-  await dbConnect();
-
+export async function GET() {
   try {
-    // Check if the medication already exists
-    const existing = await Medication.findOne({
-      userId: MOCK_USER_ID,
-      name: "Test Medication",
-    });
+    await dbConnect();
+    const medications = await Medication.find({ status: "pending" }).populate(
+      "userId"
+    );
+
+    const now = new Date();
+    const currentHourMinute = `${String(now.getHours()).padStart(
+      2,
+      "0"
+    )}:${String(now.getMinutes()).padStart(2, "0")}`;
 
     let count = 0;
-
-    if (!existing) {
-      await Medication.create({
-        userId: new mongoose.Types.ObjectId(MOCK_USER_ID),
-        name: "Test Medication",
-        dosage: "1 pill",
-        schedule: "08:00, 20:00",
-        status: "pending",
-      });
-
-      count = 1;
-
-      // Send email notification (optional)
-      try {
-        await sendEmail({
-          to: "user@example.com", // replace with real email
-          subject: "New Medication Added",
-          text: "A new test medication was added to your schedule.",
-        });
-      } catch (emailErr) {
-        console.error("Failed to send email:", emailErr.message);
+    for (const med of medications) {
+      const scheduleTimes = med.schedule.split(",").map((t) => t.trim());
+      if (scheduleTimes.includes(currentHourMinute)) {
+        // send notification if email exists
+        if (med.userId && med.userId.email) {
+          await sendNotification(med.userId.email, `Time to take ${med.name}`);
+        }
+        med.status = "taken";
+        await med.save();
+        count++;
       }
     }
 
-    return new Response(JSON.stringify({ message: "Cron executed", count }), {
-      status: 200,
-    });
+    return NextResponse.json({ success: true, processed: count });
   } catch (err) {
-    console.error(err);
-    return new Response(
-      JSON.stringify({
-        error: "Failed to insert seed data",
-        details: err.message,
-      }),
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: err.message });
   }
 }

@@ -7,7 +7,12 @@ import Link from "next/link";
 
 export default function Signup() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "patient" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "patient",
+  });
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -45,7 +50,9 @@ export default function Signup() {
         router.push("/login");
       }, 2000); // 2 seconds delay before redirect
     } catch (err) {
-      setError(err.response?.data?.message || "An error occurred during signup.");
+      setError(
+        err.response?.data?.message || "An error occurred during signup."
+      );
     }
   };
 
@@ -63,10 +70,14 @@ export default function Signup() {
       <h1 style={{ textAlign: "center", color: "#333" }}>Sign Up</h1>
 
       {error && (
-        <p style={{ color: "red", textAlign: "center", fontSize: "14px" }}>{error}</p>
+        <p style={{ color: "red", textAlign: "center", fontSize: "14px" }}>
+          {error}
+        </p>
       )}
       {successMsg && (
-        <p style={{ color: "green", textAlign: "center", fontSize: "14px" }}>{successMsg}</p>
+        <p style={{ color: "green", textAlign: "center", fontSize: "14px" }}>
+          {successMsg}
+        </p>
       )}
 
       <form

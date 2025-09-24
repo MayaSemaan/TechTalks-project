@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import dynamic from "next/dynamic";
 
-// Dynamically import Recharts to avoid SSR issues
+// dynamic import for Recharts
 const {
   LineChart,
   Line,
@@ -32,7 +32,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!userId) return;
     const base = process.env.NEXT_PUBLIC_API_BASE || "";
-
     setLoading(true);
     setError(null);
 

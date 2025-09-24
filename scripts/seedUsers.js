@@ -1,6 +1,6 @@
 // scripts/seedUsers.js
-import "dotenv/config"; // loads .env automatically
-import dbConnect from "../lib/dbConnect.js";
+import "dotenv/config";
+import dbConnect from "../lib/db.js";
 import User from "../models/User.js";
 
 async function seedUsers() {
@@ -23,14 +23,9 @@ async function seedUsers() {
     ];
 
     for (const u of users) {
-      await User.updateOne(
-        { email: u.email }, // filter by email
-        { $set: u }, // update with this data
-        { upsert: true } // insert if not exists
-      );
+      await User.updateOne({ email: u.email }, { $set: u }, { upsert: true });
     }
 
-    // Fetch the inserted/updated users
     const doctor = await User.findOne({ email: "doctor@example.com" });
     const patient = await User.findOne({ email: "patient@example.com" });
 

@@ -14,7 +14,6 @@ export default function ReportsPage() {
     if (!patientId) return;
     const base = process.env.NEXT_PUBLIC_API_BASE || "";
     setLoading(true);
-
     axios
       .get(`${base}/api/reports?patientId=${patientId}`)
       .then((res) => setReports(res.data))

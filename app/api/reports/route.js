@@ -39,11 +39,17 @@ export async function POST(req) {
       // Check doctor and patient exist
       const doctor = await User.findById(data.doctor);
       if (!doctor)
-        return NextResponse.json({ error: "Doctor not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Doctor not found" },
+          { status: 404 }
+        );
 
       const patient = await User.findById(data.patient);
       if (!patient)
-        return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Patient not found" },
+          { status: 404 }
+        );
 
       // Create report
       const report = await Report.create(data);
@@ -67,7 +73,10 @@ export async function POST(req) {
       const file = data.files.file;
 
       if (!title || !description || !patient || !file || !doctor) {
-        return NextResponse.json({ error: "All fields are required" }, { status: 400 });
+        return NextResponse.json(
+          { error: "All fields are required" },
+          { status: 400 }
+        );
       }
 
       const fileUrl = saveFile(file);
