@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Body gradient background */
+body {
+  @apply font-sans bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white shadow-md rounded-lg p-6 mb-4;
+}
+
+/* Card hover */
+.card:hover {
+  @apply shadow-xl transform scale-105 transition-all duration-200;
+}
