@@ -14,10 +14,11 @@ const reportSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    fileUrl: { type: String }, // added from fetchingData branch
   },
   { timestamps: true }
 );
 
 const Report = mongoose.models.Report || mongoose.model("Report", reportSchema);
-export default Report;
 
+export default Report;

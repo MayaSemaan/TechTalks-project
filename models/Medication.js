@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+const DoseSchema = new mongoose.Schema(
+  {
+    date: Date,
+    taken: Boolean,
+  },
+  { _id: false }
+);
+
 const MedicationSchema = new mongoose.Schema(
   {
     userId: {
@@ -15,6 +23,7 @@ const MedicationSchema = new mongoose.Schema(
       enum: ["pending", "taken", "missed"],
       default: "pending",
     },
+    doses: [DoseSchema], // optional dose tracking from fetchingData branch
   },
   { timestamps: true }
 );
