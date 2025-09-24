@@ -6,11 +6,13 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: {
     type: String,
-    enum: ["patient", "doctor", "admin"],
+    enum: ["patient", "doctor", "admin"], // include admin if needed
     default: "patient",
-  }, // enum from fetchingData
+    required: true,
+  },
 });
 
+// Ensure Mongoose only registers the model once
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
 export default User;
