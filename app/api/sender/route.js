@@ -1,19 +1,15 @@
+// app/api/sender/route.js
 import { NextResponse } from "next/server";
-import resend from "../../../utils/resend"; // your Resend init
+import { sendNotification } from "../../utils/sendNotification.js";
 
 export async function POST(req) {
   try {
-    const { to } = await req.json(); // read 'to' instead of 'email'
+    const { to, subject, html } = await req.json();
 
-    const response = await resend.emails.send({
-      from: "sandbox@resend.dev",
-      to, // must be 'to'
-      subject: "Welcome to TechTalks!",
-      html: "<p>Your account was created successfully.</p>",
-    });
+    const response = await sendNotification(to, subject, html);
 
     return NextResponse.json({ success: true, response });
   } catch (err) {
-    return NextResponse.json({ success: false, error: err });
+    return NextResponse.json({ success: false, error: err.message });
   }
 }

@@ -1,45 +1,25 @@
-import bcrypt from "bcryptjs";
+import { NextResponse } from "next/server";
 import connectToDB from "../../../lib/db.js";
-import User from "../../../models/User";
+import User from "../../../models/User.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 export async function POST(req) {
   try {
     await connectToDB();
     const { name, email, password, role } = await req.json();
 
-    if (!name || !email || !password) {
-      return new Response(JSON.stringify({ msg: "Missing fields" }), {
-        status: 400,
-      });
-    }
-
     const existing = await User.findOne({ email });
-    if (existing) {
-      return new Response(JSON.stringify({ msg: "Email already registered" }), {
-        status: 400,
-      });
-    }
+    if (existing)
+      return NextResponse.json({ error: "User exists" }, { status: 400 });
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = new User({ name, email, password: hashed, role });
-    await user.save();
+    const user = await User.create({ name, email, password: hashed, role });
 
-    return new Response(
-      JSON.stringify({
-        msg: "User registered",
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      }),
-      { status: 201 }
-    );
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+
+    return NextResponse.json({ user, token }, { status: 201 });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ msg: "Server error", error: err.message }),
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

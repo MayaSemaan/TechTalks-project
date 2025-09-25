@@ -1,21 +1,74 @@
-import jwt from "jsonwebtoken";
-import User from "../../../models/User.js";
+import { NextResponse } from "next/server";
+import connectToDB from "../../../lib/db.js";
+import Medication from "../../../models/Medication.js";
+import { authenticate } from "../../../middlewares/auth.js";
+import mongoose from "mongoose";
 
-export const authenticate = async (req) => {
+export async function GET(req) {
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      throw new Error("No token provided");
+    const user = await authenticate(req);
+    await connectToDB();
+    const meds = await Medication.find({ userId: user._id });
+    return NextResponse.json(meds);
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 401 });
+  }
+}
+
+export async function POST(req) {
+  try {
+    const user = await authenticate(req);
+    await connectToDB();
+    const data = await req.json();
+    const med = await Medication.create({ ...data, userId: user._id });
+    return NextResponse.json(med, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 401 });
+  }
+}
+
+export async function PUT(req) {
+  try {
+    const user = await authenticate(req);
+    await connectToDB();
+    const data = await req.json();
+    const { id, ...updates } = data;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const med = await Medication.findOneAndUpdate(
+      { _id: id, userId: user._id },
+      updates,
+      { new: true }
+    );
 
-    const user = await User.findById(decoded.id);
-    if (!user) throw new Error("User not found");
-
-    return user;
+    if (!med) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(med);
   } catch (err) {
-    throw new Error("Unauthorized: " + err.message);
+    return NextResponse.json({ error: err.message }, { status: 401 });
   }
-};
+}
+
+export async function DELETE(req) {
+  try {
+    const user = await authenticate(req);
+    await connectToDB();
+    const data = await req.json();
+    const { id } = data;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+    }
+
+    const med = await Medication.findOneAndDelete({
+      _id: id,
+      userId: user._id,
+    });
+    if (!med) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 401 });
+  }
+}

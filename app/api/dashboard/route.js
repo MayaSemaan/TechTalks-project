@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import connectToDB from "../../../lib/db.js";
 import Medication from "../../../models/Medication.js";
 import Report from "../../../models/Report.js";
-import { authenticate } from "../../middlewares/auth.js";
+import { authenticate } from "../../../middlewares/auth.js";
 
 export async function GET(req) {
   try {
@@ -10,7 +10,9 @@ export async function GET(req) {
     await connectToDB();
 
     const meds = await Medication.find({ userId: user._id }).lean();
-    const reports = await Report.find({ patient: user._id }).lean();
+    const reports = await Report.find({ patient: user._id })
+      .sort({ createdAt: -1 })
+      .lean();
 
     const chartData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();

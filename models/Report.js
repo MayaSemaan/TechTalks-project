@@ -1,11 +1,9 @@
-// models/Report.js
-import mongoose from "mongoose"; // Make sure this is at the top
-import User from "./User.js"; // Import User to ensure it's registered
+import mongoose from "mongoose";
 
 const ReportSchema = new mongoose.Schema(
   {
     doctor: {
-      type: mongoose.Schema.Types.ObjectId, // Use mongoose.Schema.Types.ObjectId
+      type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
@@ -16,10 +14,9 @@ const ReportSchema = new mongoose.Schema(
     },
     title: { type: String, required: true },
     description: { type: String, required: true },
-    fileUrl: { type: String }, // optional for now
+    fileUrl: { type: String }, // optional for uploads
   },
   { timestamps: true }
 );
 
-// Ensure model is registered only once
 export default mongoose.models.Report || mongoose.model("Report", ReportSchema);
