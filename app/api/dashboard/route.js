@@ -2,22 +2,15 @@ import { NextResponse } from "next/server";
 import connectToDB from "../../../lib/db.js";
 import Medication from "../../../models/Medication.js";
 import Report from "../../../models/Report.js";
+import { authenticate } from "../../middlewares/auth.js";
 
 export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-
-  if (!userId) {
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-  }
-
   try {
+    const user = await authenticate(req);
     await connectToDB();
 
-    const meds = await Medication.find({ userId }).lean();
-    const reports = await Report.find({ userId })
-      .sort({ uploadedAt: -1 })
-      .lean();
+    const meds = await Medication.find({ userId: user._id }).lean();
+    const reports = await Report.find({ patient: user._id }).lean();
 
     const chartData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
@@ -45,7 +38,6 @@ export async function GET(req) {
       metrics: { adherencePercent },
     });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 401 });
   }
 }
