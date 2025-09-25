@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import connectToDB from "../../../lib/db.js";
-import Report from "../../../models/reports.js";
+import Report from "../../../models/Report.js";
 import User from "../../../models/User.js";
 import mongoose from "mongoose";
 import formidable from "formidable";

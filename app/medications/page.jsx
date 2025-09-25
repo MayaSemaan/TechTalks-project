@@ -51,7 +51,7 @@ export default function MedicationsPage() {
   const handleEdit = (med) => setEditingMed(med);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 max-w-2xl mx-auto bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen rounded-lg">
       <MedicationForm
         onSave={handleSave}
         onCancel={() => setEditingMed(null)}

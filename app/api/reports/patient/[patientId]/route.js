@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import connectToDB from "../../../../../lib/db.js";
-import Report from "../../../../../models/reports.js";
+import Report from "../../../../../models/Report.js";
 
 // Connect to MongoDB
 await connectToDB();

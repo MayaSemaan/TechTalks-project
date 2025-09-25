@@ -1,4 +1,6 @@
 {
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/reports/upload/page": "app/reports/upload/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/medications/route": "app/api/medications/route.js",
+  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js",
+  "/reports/[patientId]/page": "app/reports/[patientId]/page.js"
 }

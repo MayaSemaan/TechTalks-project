@@ -75,14 +75,14 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 p-4 bg-gray-100 rounded shadow"
+      className="flex flex-col gap-4 p-6 bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-200"
     >
       <input
         type="text"
         placeholder="Medication Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="border p-2 rounded"
+        className="border p-2 rounded w-full"
       />
       <div className="flex gap-2">
         <input
@@ -145,7 +145,7 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         <button
           type="button"
           onClick={addTime}
-          className="mt-1 bg-blue-500 text-white px-3 py-1 rounded"
+          className="mt-2 px-3 py-1 rounded bg-gradient-to-r from-blue-400 to-purple-500 text-white font-medium hover:from-blue-500 hover:to-purple-600 transition-all"
         >
           Add Time
         </button>
@@ -187,7 +187,7 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
       <div className="flex gap-2">
         <button
           type="submit"
-          className="bg-green-600 text-white px-4 py-2 rounded"
+          className="px-4 py-2 rounded bg-gradient-to-r from-blue-400 to-purple-500 text-white font-medium hover:from-blue-500 hover:to-purple-600 transition-all"
         >
           {initialData ? "Update" : "Add"}
         </button>
@@ -195,7 +195,7 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
           <button
             type="button"
             onClick={onCancel}
-            className="bg-gray-500 text-white px-4 py-2 rounded"
+            className="px-4 py-2 rounded bg-gray-500 text-white font-medium hover:bg-gray-600 transition-all"
           >
             Cancel
           </button>
