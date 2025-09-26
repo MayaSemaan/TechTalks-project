@@ -16,10 +16,12 @@ export async function GET() {
     let count = 0;
 
     const now = new Date();
+    now.setSeconds(0, 0); // normalize seconds
+
     console.log(`Current time (HH:MM): ${now.getHours()}:${now.getMinutes()}`);
 
     for (const med of medications) {
-      const scheduleTimes = med.schedule.split(",").map((t) => t.trim());
+      const scheduleTimes = med.times || []; // use times array
       let processed = false;
 
       for (const sched of scheduleTimes) {
@@ -43,13 +45,13 @@ export async function GET() {
           await med.save();
           count++;
           processed = true;
-          break; // Stop checking other times for this medication
+          break; // stop checking other times
         }
       }
 
       if (!processed) {
         console.log(
-          `Skipping ${med.name}, not scheduled at this time (scheduled at: ${scheduleTimes})`
+          `Skipping ${med.name}, not scheduled now (scheduled for: ${scheduleTimes})`
         );
       }
     }

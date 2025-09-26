@@ -21,158 +21,86 @@ export default function Signup() {
     setForm({ ...form, [name]: value });
   };
 
-  const validateEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
 
-    // Frontend validations
-    if (!validateEmail(form.email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters long.");
-      return;
-    }
-
     try {
-      const res = await axios.post("http://localhost:3000/signup", form);
-      console.log("Signup successful:", res.data);
-
-      // Show success message before redirect
+      await axios.post(`${process.env.NEXT_PUBLIC_API_BASE}/signup`, form);
       setSuccessMsg("Signup successful, redirecting...");
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000); // 2 seconds delay before redirect
+      setTimeout(() => router.push("/login"), 2000);
     } catch (err) {
-      setError(
-        err.response?.data?.message || "An error occurred during signup."
-      );
+      setError(err.response?.data?.message || "Error during signup.");
     }
   };
 
   return (
-    <div
-      style={{
-        maxWidth: "400px",
-        margin: "50px auto",
-        padding: "20px",
-        border: "1px solid #ccc",
-        borderRadius: "10px",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h1 style={{ textAlign: "center", color: "#333" }}>Sign Up</h1>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 flex items-center justify-center p-8">
+      <div className="max-w-md w-full bg-white shadow-md rounded-xl p-8">
+        <h1 className="text-3xl font-bold text-blue-900 text-center mb-6">
+          Sign Up
+        </h1>
 
-      {error && (
-        <p style={{ color: "red", textAlign: "center", fontSize: "14px" }}>
-          {error}
-        </p>
-      )}
-      {successMsg && (
-        <p style={{ color: "green", textAlign: "center", fontSize: "14px" }}>
-          {successMsg}
-        </p>
-      )}
+        {error && <p className="text-red-600 text-center mb-2">{error}</p>}
+        {successMsg && (
+          <p className="text-green-600 text-center mb-2">{successMsg}</p>
+        )}
 
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "15px" }}
-      >
-        <label>
-          Name:
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <input
             type="text"
             name="name"
-            onChange={handleChange}
             value={form.name}
+            onChange={handleChange}
+            placeholder="Name"
             required
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "100%",
-            }}
+            className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           />
-        </label>
-        <label>
-          Email:
           <input
             type="email"
             name="email"
-            onChange={handleChange}
             value={form.email}
+            onChange={handleChange}
+            placeholder="Email"
             required
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "100%",
-            }}
+            className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           />
-        </label>
-        <label>
-          Password:
           <input
             type="password"
             name="password"
-            onChange={handleChange}
             value={form.password}
+            onChange={handleChange}
+            placeholder="Password"
             required
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "100%",
-            }}
+            className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           />
-        </label>
-        <label>
-          Role:
           <select
             name="role"
-            onChange={handleChange}
             value={form.role}
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "100%",
-            }}
+            onChange={handleChange}
+            className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           >
             <option value="patient">Patient</option>
             <option value="family">Family</option>
             <option value="doctor">Doctor</option>
           </select>
-        </label>
 
-        <button
-          type="submit"
-          style={{
-            padding: "12px",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: "#0070f3",
-            color: "#fff",
-            fontWeight: "bold",
-            cursor: "pointer",
-          }}
-        >
-          Sign Up
-        </button>
-      </form>
+          <button
+            type="submit"
+            className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition"
+          >
+            Sign Up
+          </button>
+        </form>
 
-      <p style={{ textAlign: "center", marginTop: "15px", fontSize: "14px" }}>
-        Already have an account?{" "}
-        <Link href="/login" style={{ color: "#0070f3", fontWeight: "bold" }}>
-          Login
-        </Link>
-      </p>
+        <p className="text-center text-gray-700 mt-4">
+          Already have an account?{" "}
+          <Link href="/login" className="text-blue-600 font-semibold">
+            Login
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

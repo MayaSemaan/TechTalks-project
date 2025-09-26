@@ -1,79 +1,66 @@
 import "dotenv/config";
+import mongoose from "mongoose";
 import connectToDB from "./lib/db.js";
 import Medication from "./models/Medication.js";
-import { sendNotification } from "./app/utils/sendNotification.js";
-import cron from "node-cron";
 
-const ENABLE_CRON = process.env.ENABLE_CRON === "true";
-const EARLY_MINUTES = 5; // optional early notification
-
-if (ENABLE_CRON) {
-  console.log("Cron runner started");
-
-  cron.schedule("* * * * *", async () => {
-    console.log("Running cron job...");
+async function runCron() {
+  try {
     await connectToDB();
+    console.log("Cron runner started");
 
-    try {
-      const medications = await Medication.find({ status: "pending" }).populate(
-        "userId"
-      );
-      const now = new Date();
-      const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(
-        now.getMinutes()
-      ).padStart(2, "0")}`;
-      let count = 0;
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
 
-      for (const med of medications) {
-        const scheduleTimes = med.schedule.split(",").map((t) => t.trim());
+    console.log("Running cron job...");
+    console.log("Current time:", currentTime);
 
-        for (const scheduledTime of scheduleTimes) {
-          if (!med.notifiedTimes.includes(scheduledTime)) {
-            // Calculate early reminder time
-            const [hour, minute] = scheduledTime.split(":").map(Number);
-            const scheduledDate = new Date(now);
-            scheduledDate.setHours(hour, minute, 0, 0);
-            scheduledDate.setMinutes(
-              scheduledDate.getMinutes() - EARLY_MINUTES
-            );
-            const earlyHHMM = `${String(scheduledDate.getHours()).padStart(
-              2,
-              "0"
-            )}:${String(scheduledDate.getMinutes()).padStart(2, "0")}`;
+    // Fetch medications for all users
+    const meds = await Medication.find({});
+    console.log("Medications fetched:", meds.length);
 
-            if (currentHHMM === earlyHHMM) {
-              if (med.userId && med.userId.email) {
-                console.log(
-                  `Sending notification for ${med.name} to ${med.userId.email}`
-                );
-                await sendNotification(
-                  med.userId.email,
-                  `Reminder: Time to take ${med.name} in ${EARLY_MINUTES} minutes`
-                );
-              }
+    let processed = 0;
 
-              // Mark this scheduled time as notified
-              med.notifiedTimes.push(scheduledTime);
+    for (const med of meds) {
+      if (!med.times || med.times.length === 0) continue;
 
-              // If all times notified, mark as taken
-              if (med.notifiedTimes.length === scheduleTimes.length) {
-                med.status = "taken";
-              }
+      // Ensure notifiedTimes is defined
+      med.notifiedTimes = med.notifiedTimes || [];
 
-              await med.save();
-              count++;
-            } else {
-              console.log(
-                `Skipping ${med.name} at ${currentHHMM}, scheduled for ${scheduledTime}`
-              );
-            }
-          }
+      for (const scheduledTime of med.times) {
+        // Skip if already notified
+        if (med.notifiedTimes.includes(scheduledTime)) continue;
+
+        // Process medication if current time matches scheduledTime
+        if (currentTime === scheduledTime) {
+          // Log the dose
+          med.doses.push({ date: now, taken: false });
+
+          // Update status to "pending" (awaiting patient confirmation)
+          med.status = "pending";
+
+          // Mark this time as notified
+          med.notifiedTimes.push(scheduledTime);
+
+          await med.save();
+          processed++;
+
+          console.log(`Processed medication: ${med.name} for ${currentTime}`);
+        } else {
+          console.log(
+            `Skipping ${med.name}, not scheduled now (scheduled for ${scheduledTime})`
+          );
         }
       }
-
-      console.log(`Cron job success: ${count} medication(s) processed`);
-    } catch (err) {
-      console.error("Cron job failed:", err);
     }
-  });
+
+    console.log(`Cron job success: ${processed} medication(s) processed`);
+    return { success: true, processed };
+  } catch (err) {
+    console.error("Cron job error:", err.message);
+    return { success: false, error: err.message };
+  } finally {
+    await mongoose.connection.close();
+  }
 }
+
+runCron();

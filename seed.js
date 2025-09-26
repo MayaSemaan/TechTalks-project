@@ -11,8 +11,14 @@ async function updateTestMedication() {
   ).padStart(2, "0")}`;
 
   const res = await Medication.updateOne(
-    { name: "Test Medication" },
-    { schedule: currentHHMM, status: "pending" }
+    { name: "Test Medication" }, // find existing
+    {
+      $set: {
+        times: [currentHHMM],
+        status: "pending",
+        notifiedTimes: [],
+      },
+    }
   );
 
   console.log("Test medication updated:", res);
