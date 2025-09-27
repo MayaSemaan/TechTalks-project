@@ -1,4 +1,8 @@
 {
+  "/api/login/route": "app/api/login/route.js",
   "/api/dashboard/route": "app/api/dashboard/route.js",
-  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js"
+  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js",
+  "/reports/[patientId]/page": "app/reports/[patientId]/page.js",
+  "/medications/page": "app/medications/page.js",
+  "/signup/page": "app/signup/page.js"
 }
