@@ -9,29 +9,36 @@ export async function GET(req) {
   try {
     await connectToDB();
 
-    let user;
+    const user = await authenticate(req);
 
-    // Try to get token first (for Postman)
-    const authHeader = req.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      user = await authenticate(req); // authenticate with token
-    } else {
-      // Fallback for browser: get userId from query param
-      const url = new URL(req.url);
-      const userId = url.searchParams.get("userId");
-      if (!userId) throw new Error("No userId or token provided");
+    let meds = [];
+    let reports = [];
 
-      user = await User.findById(userId);
-      if (!user) throw new Error("User not found");
+    if (user.role === "patient") {
+      // Patient sees only own meds & reports
+      meds = await Medication.find({ userId: user._id }).lean();
+      reports = await Report.find({ patient: user._id })
+        .sort({ createdAt: -1 })
+        .lean();
+    } else if (user.role === "doctor") {
+      // Doctor sees their patients' meds & reports
+      const patientIds = user.patient || [];
+      meds = await Medication.find({ userId: { $in: patientIds } }).lean();
+      reports = await Report.find({ patient: { $in: patientIds } })
+        .sort({ createdAt: -1 })
+        .lean();
+    } else if (user.role === "family") {
+      // Family sees linked patients' meds & reports
+      const linkedPatientIds = user.linkedFamily || [];
+      meds = await Medication.find({
+        userId: { $in: linkedPatientIds },
+      }).lean();
+      reports = await Report.find({ patient: { $in: linkedPatientIds } })
+        .sort({ createdAt: -1 })
+        .lean();
     }
 
-    // Get meds and reports
-    const meds = await Medication.find({ userId: user._id }).lean();
-    const reports = await Report.find({ patient: user._id })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Chart data
+    // Chart data (for first patient or aggregate? Here using first linked patient if family)
     const chartData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);

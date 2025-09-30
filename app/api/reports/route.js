@@ -23,9 +23,22 @@ export async function GET(req) {
   try {
     const user = await authenticate(req);
     await connectToDB();
-    const reports = await Report.find({ patient: user._id })
-      .populate("doctor", "name role")
-      .populate("patient", "name role");
+
+    let reports;
+
+    if (user.role === "family") {
+      // Family sees linked patients’ reports
+      const linkedPatientIds = user.linkedFamily || [];
+      reports = await Report.find({ patient: { $in: linkedPatientIds } })
+        .populate("doctor", "name role")
+        .populate("patient", "name role");
+    } else {
+      // Patient or doctor sees own reports
+      reports = await Report.find({ patient: user._id })
+        .populate("doctor", "name role")
+        .populate("patient", "name role");
+    }
+
     return NextResponse.json(reports);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 401 });

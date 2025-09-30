@@ -8,6 +8,7 @@ export async function GET() {
   await connectToDB();
 
   try {
+    // Fetch medications that are pending
     const medications = await Medication.find({ status: "pending" }).populate(
       "userId"
     );
@@ -17,7 +18,6 @@ export async function GET() {
 
     const now = new Date();
     now.setSeconds(0, 0); // normalize seconds
-
     console.log(`Current time (HH:MM): ${now.getHours()}:${now.getMinutes()}`);
 
     for (const med of medications) {
@@ -41,6 +41,25 @@ export async function GET() {
               `Time to take ${med.name}`
             );
           }
+
+          // If the user has linked family, notify them too
+          if (med.userId && med.userId.linkedFamily?.length) {
+            const familyMembers = await User.find({
+              _id: { $in: med.userId.linkedFamily },
+            });
+            for (const fam of familyMembers) {
+              if (fam.email) {
+                console.log(
+                  `Sending notification for ${med.name} to family: ${fam.email}`
+                );
+                await sendNotification(
+                  fam.email,
+                  `Reminder: ${med.userId.name} should take ${med.name}`
+                );
+              }
+            }
+          }
+
           med.status = "taken";
           await med.save();
           count++;
