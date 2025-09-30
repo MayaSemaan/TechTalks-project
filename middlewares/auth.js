@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User";
-import connectToDB from "../lib/db";
+import User from "../models/User.js";
+import connectToDB from "../lib/db.js";
 
 export const authenticate = async (req) => {
   try {
@@ -8,6 +8,7 @@ export const authenticate = async (req) => {
 
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("No token provided");
+
     if (!authHeader.startsWith("Bearer "))
       throw new Error("Invalid token format");
 

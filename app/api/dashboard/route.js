@@ -8,28 +8,28 @@ import { authenticate } from "../../../middlewares/auth.js";
 export async function GET(req) {
   try {
     await connectToDB();
-
     const user = await authenticate(req);
 
     let meds = [];
     let reports = [];
 
     if (user.role === "patient") {
-      // Patient sees only own meds & reports
+      // Patient sees only own data
       meds = await Medication.find({ userId: user._id }).lean();
       reports = await Report.find({ patient: user._id })
         .sort({ createdAt: -1 })
         .lean();
     } else if (user.role === "doctor") {
-      // Doctor sees their patients' meds & reports
-      const patientIds = user.patient || [];
+      // Doctor sees own patients’ meds & reports
+      const patientIds = user.patient.map((id) => id.toString()) || [];
       meds = await Medication.find({ userId: { $in: patientIds } }).lean();
       reports = await Report.find({ patient: { $in: patientIds } })
         .sort({ createdAt: -1 })
         .lean();
     } else if (user.role === "family") {
-      // Family sees linked patients' meds & reports
-      const linkedPatientIds = user.linkedFamily || [];
+      // Family sees linked patients’ meds & reports
+      const linkedPatientIds =
+        user.linkedFamily.map((id) => id.toString()) || [];
       meds = await Medication.find({
         userId: { $in: linkedPatientIds },
       }).lean();
@@ -38,7 +38,7 @@ export async function GET(req) {
         .lean();
     }
 
-    // Chart data (for first patient or aggregate? Here using first linked patient if family)
+    // Chart data (for patient only; optional for family)
     const chartData = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
