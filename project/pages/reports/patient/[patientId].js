@@ -1,3 +1,5 @@
+
+// pages/reports/patient/[patientId].js 
 import { useEffect, useState } from "react";
 
 export default function PatientReports({ patientId }) {
