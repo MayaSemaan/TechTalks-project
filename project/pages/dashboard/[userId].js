@@ -1,3 +1,5 @@
+// pages/dashboard/[userId].js
+
 import { useEffect, useState } from "react";
 
 export default function Dashboard({ userId }) {
@@ -7,6 +9,7 @@ export default function Dashboard({ userId }) {
     async function fetchData() {
       const res = await fetch(`/api/dashboard/${userId}`);
       const json = await res.json();
+      console.log("Fetched data:", json);
       setData(json);
     }
     fetchData();
