@@ -1,3 +1,5 @@
+    
+// project/seed.js
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import Medication from "./models/medication.js";
@@ -46,7 +48,7 @@ async function main() {
     console.log("📦 Seeded Medications:", meds.length);
     console.log("📦 Seeded Reports:", reports.length);
     console.log("✅ Done seeding!");
-
+console.log("📚 Sample User ID:", userId.toString());
     await mongoose.connection.close();
     process.exit(0);
   } catch (err) {
