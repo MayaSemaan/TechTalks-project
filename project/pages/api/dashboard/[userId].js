@@ -1,6 +1,10 @@
+
+// pages/api/dashboard/[userId].js
+
 import dbConnect from "@/lib/dbConnect";
 import Medication from "@/models/medication";
 import Report from "@/models/report";
+import mongoose  from "mongoose";
 
 export default async function handler(req, res) {
   await dbConnect();
@@ -8,8 +12,10 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const medications = await Medication.find({ userId });
-      const reports = await Report.find({ patientId: userId });
+      const ObjectId=new mongoose.Types.ObjectId(userId);
+
+      const medications = await Medication.find({ userId: ObjectId });
+      const reports = await Report.find({ patientId: ObjectId });
 
       return res.status(200).json({
         medications,
