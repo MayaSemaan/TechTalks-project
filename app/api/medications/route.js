@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectToDB from "../../../lib/db.js";
 import Medication from "../../../models/Medication.js";
+import User from "../../../models/User.js";
 import { authenticate } from "../../../middlewares/auth.js";
 import mongoose from "mongoose";
 
@@ -37,22 +38,34 @@ export async function POST(req) {
     await connectToDB();
 
     const data = await req.json();
-    let med;
 
+    // If family, validate userId against linked patients
     if (user.role === "family") {
-      // Family must specify which linked patient the med is for
       const linkedPatientIds = user.linkedFamily.map((id) => id.toString());
       if (!data.userId || !linkedPatientIds.includes(data.userId)) {
         return NextResponse.json(
-          { error: "Unauthorized or missing userId" },
+          { error: "Unauthorized or invalid userId" },
           { status: 403 }
         );
       }
-      med = await Medication.create({ ...data });
-    } else {
-      med = await Medication.create({ ...data, userId: user._id });
     }
 
+    // Validate that the userId exists in DB
+    const userExists = await User.findById(data.userId || user._id);
+    if (!userExists) {
+      return NextResponse.json(
+        { error: "User does not exist" },
+        { status: 400 }
+      );
+    }
+
+    // Assign userId if not provided (for non-family roles)
+    const medData = {
+      ...data,
+      userId: data.userId || user._id,
+    };
+
+    const med = await Medication.create(medData);
     return NextResponse.json(med, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 400 });

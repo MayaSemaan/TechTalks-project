@@ -1,66 +1,99 @@
+// cron-runner.js
 import "dotenv/config";
 import mongoose from "mongoose";
 import connectToDB from "./lib/db.js";
+
+// Connect to DB first
+await connectToDB();
+console.log("Connected to database:", mongoose.connection.name);
+
+// Import models
 import Medication from "./models/Medication.js";
+import User from "./models/User.js";
+import { sendNotification } from "./app/utils/sendNotification.js";
 
 async function runCron() {
   try {
-    await connectToDB();
     console.log("Cron runner started");
 
     const now = new Date();
-    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
-
-    console.log("Running cron job...");
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
     console.log("Current time:", currentTime);
 
-    // Fetch medications for all users
-    const meds = await Medication.find({});
-    console.log("Medications fetched:", meds.length);
+    // Get all medications that are pending or taken
+    const medications = await Medication.find({
+      status: { $in: ["pending", "taken"] },
+    });
 
     let processed = 0;
 
-    for (const med of meds) {
-      if (!med.times || med.times.length === 0) continue;
+    for (const med of medications) {
+      // Ensure arrays exist
+      med.doses = Array.isArray(med.doses) ? med.doses : [];
+      med.notifiedTimes = Array.isArray(med.notifiedTimes)
+        ? med.notifiedTimes
+        : [];
+      med.times = Array.isArray(med.times) ? med.times : [];
 
-      // Ensure notifiedTimes is defined
-      med.notifiedTimes = med.notifiedTimes || [];
+      // Check if the user exists
+      const user = await User.findById(med.userId);
+      if (!user) {
+        console.log(
+          `Skipping medication "${med.name}": userId "${med.userId}" not found`
+        );
+        continue; // skip this medication
+      }
 
-      for (const scheduledTime of med.times) {
-        // Skip if already notified
-        if (med.notifiedTimes.includes(scheduledTime)) continue;
+      let medUpdated = false;
 
-        // Process medication if current time matches scheduledTime
-        if (currentTime === scheduledTime) {
+      for (const sched of med.times) {
+        if (!med.notifiedTimes.includes(sched) && sched === currentTime) {
+          console.log(`Processing medication: "${med.name}" for ${user.email}`);
+
+          // Send notification if user has email
+          if (user.email) {
+            await sendNotification(user.email, `Time to take ${med.name}`);
+          }
+
           // Log the dose
           med.doses.push({ date: now, taken: false });
 
-          // Update status to "pending" (awaiting patient confirmation)
+          // Update status to "pending" until user confirms
           med.status = "pending";
 
-          // Mark this time as notified
-          med.notifiedTimes.push(scheduledTime);
+          // Mark as notified for this time
+          med.notifiedTimes.push(sched);
 
-          await med.save();
+          medUpdated = true;
           processed++;
-
-          console.log(`Processed medication: ${med.name} for ${currentTime}`);
-        } else {
-          console.log(
-            `Skipping ${med.name}, not scheduled now (scheduled for ${scheduledTime})`
-          );
         }
+      }
+
+      // Save medication only if updated
+      if (medUpdated) {
+        console.log("Before save:", {
+          doses: med.doses,
+          notifiedTimes: med.notifiedTimes,
+        });
+
+        await med.save();
+
+        console.log("After save:", {
+          doses: med.doses,
+          notifiedTimes: med.notifiedTimes,
+        });
       }
     }
 
-    console.log(`Cron job success: ${processed} medication(s) processed`);
+    console.log(`Cron job finished: ${processed} medications processed`);
     return { success: true, processed };
   } catch (err) {
-    console.error("Cron job error:", err.message);
+    console.error("Cron job error:", err);
     return { success: false, error: err.message };
-  } finally {
-    await mongoose.connection.close();
   }
 }
 
+// Run immediately (for testing)
 runCron();
+
+export default runCron;

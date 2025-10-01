@@ -1,12 +1,12 @@
-import { authMiddleware } from "../../../middlewares/auth";
-import User from "../../../models/User";
-import connectToDB from "../../../lib/db";
-
-await connectToDB();
+import { authenticate } from "../../../middlewares/auth.js"; // ✅ FIXED
+import User from "../../../models/User.js";
+import connectToDB from "../../../lib/db.js";
 
 export async function POST(req) {
   try {
-    const user = await authMiddleware(req);
+    await connectToDB();
+
+    const user = await authenticate(req); // ✅ FIXED
 
     const { targetId, role } = await req.json();
 
