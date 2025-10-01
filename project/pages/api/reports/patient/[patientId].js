@@ -1,3 +1,6 @@
+
+// pages/api/reports/[patientId].js 
+
 import dbConnect from "@/lib/dbConnect";
 import Report from "@/models/report";
 
