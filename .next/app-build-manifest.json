@@ -1,19 +1,20 @@
 {
   "pages": {
-    "/api/medications/route": [
+    "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/route.js"
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
     ],
-    "/api/login/route": [
+    "/dashboard/[userId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/login/route.js"
+      "static/chunks/app/dashboard/[userId]/page.js"
     ],
-    "/api/register/route": [
+    "/api/dashboard/[userId]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/register/route.js"
+      "static/chunks/app/api/dashboard/[userId]/route.js"
     ]
   }
 }

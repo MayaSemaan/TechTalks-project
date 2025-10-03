@@ -15,9 +15,7 @@ export default function ReportsPage({ params }) {
     const fetchReports = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(
-          `${base}/api/reports?patientId=${patientId}`
-        );
+        const res = await axios.get(`${base}/api/reports/patient/${patientId}`);
         setReports(res.data);
       } catch (err) {
         console.error(err);

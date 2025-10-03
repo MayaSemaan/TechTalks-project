@@ -1,14 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams } from "next/navigation"; // ✅ import useParams
 import { useEffect, useState } from "react";
-import axios from "axios";
 import dynamic from "next/dynamic";
 
 const Recharts = dynamic(() => import("recharts"), { ssr: false });
 
 export default function DashboardPage() {
-  const { userId } = useParams();
+  const { userId } = useParams(); // ✅ get userId from URL dynamically
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -17,23 +16,47 @@ export default function DashboardPage() {
     chartData: [],
     metrics: {},
   });
+
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
 
   useEffect(() => {
     if (!userId) return;
+
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+
       try {
-        setLoading(true);
-        const res = await axios.get(`${base}/api/dashboard?userId=${userId}`);
-        setData(res.data);
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("No token found. Please login.");
+
+        const res = await fetch(`${base}/api/dashboard/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Failed to fetch dashboard data");
+        }
+
+        const json = await res.json();
+        setData({
+          meds: json.medications || [],
+          reports: json.reports || [],
+          chartData: json.chartData || [],
+          metrics: json.metrics || {},
+        });
       } catch (err) {
-        setError(err.response?.data?.error || err.message);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
+
     fetchData();
-  }, [userId]);
+  }, [userId, base]);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
@@ -67,7 +90,7 @@ export default function DashboardPage() {
             <h2 className="font-semibold mb-2 text-blue-900">
               Adherence (last 7 days)
             </h2>
-            {LineChart && ResponsiveContainer ? (
+            {LineChart && ResponsiveContainer && data.chartData.length ? (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart
                   data={data.chartData}
@@ -93,7 +116,7 @@ export default function DashboardPage() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p>Loading chart...</p>
+              <p>No chart data available.</p>
             )}
           </div>
 

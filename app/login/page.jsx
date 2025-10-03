@@ -19,12 +19,17 @@ export default function Login() {
     e.preventDefault();
     try {
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE}/login`,
+        `${process.env.NEXT_PUBLIC_API_BASE}/api/login`,
         form
       );
-      router.push(`/dashboard/${res.data.userId}`);
+
+      // Save the token in localStorage
+      localStorage.setItem("token", res.data.token);
+
+      // Redirect to /dashboard/[userId]
+      router.push(`/dashboard/${res.data.user._id}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid email or password.");
+      setError(err.response?.data?.error || "Invalid email or password.");
     }
   };
 
