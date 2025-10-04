@@ -23,4 +23,8 @@ npm run dev
 yarn dev
 # or
 pnpm dev
+<<<<<<< HEAD
 ```
+=======
+# 
+>>>>>>> feature/medication-ui

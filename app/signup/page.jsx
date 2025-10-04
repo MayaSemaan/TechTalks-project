@@ -21,10 +21,22 @@ export default function Signup() {
     setForm({ ...form, [name]: value });
   };
 
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
+
+    // Frontend validations
+    if (!validateEmail(form.email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
 
     try {
       await axios.post(`${process.env.NEXT_PUBLIC_API_BASE}/signup`, form);

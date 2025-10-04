@@ -17,19 +17,25 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
     try {
+      // ✅ Updated API path using environment variable
       const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE}/api/login`,
+        `${process.env.NEXT_PUBLIC_API_BASE}/login`,
         form
       );
+      console.log("Login successful:", res.data);
 
-      // Save the token in localStorage
-      localStorage.setItem("token", res.data.token);
+      // Save token if backend provides one
+      if (res.data.token) {
+        localStorage.setItem("token", res.data.token);
+      }
 
-      // Redirect to /dashboard/[userId]
+      // Redirect to user dashboard
       router.push(`/dashboard/${res.data.user._id}`);
     } catch (err) {
-      setError(err.response?.data?.error || "Invalid email or password.");
+      setError(err.response?.data?.message || "Invalid email or password.");
     }
   };
 

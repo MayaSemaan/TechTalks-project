@@ -1,225 +1,143 @@
 "use client";
-
 import { useState, useEffect } from "react";
 
 export default function MedicationForm({ onSave, onCancel, initialData }) {
-  const [form, setForm] = useState({
-    name: "",
-    dosage: "",
-    unit: "mg",
-    type: "pill",
-    frequency: "Daily",
-    times: [],
-    startDate: "",
-    endDate: "",
-    reminders: false,
-    notes: "",
-  });
+  const [name, setName] = useState(initialData?.name || "");
+  const [dosage, setDosage] = useState(initialData?.dosage || "");
+  const [unit, setUnit] = useState(initialData?.unit || "");
+  const [type, setType] = useState(initialData?.type || "");
+  const [frequency, setFrequency] = useState(initialData?.frequency || "");
+  const [times, setTimes] = useState(initialData?.times?.join(", ") || "");
+  const [schedule, setSchedule] = useState(initialData?.schedule || "morning");
+  const [startDate, setStartDate] = useState(initialData?.startDate || "");
+  const [endDate, setEndDate] = useState(initialData?.endDate || "");
+  const [notes, setNotes] = useState(initialData?.notes || "");
+  const [reminders, setReminders] = useState(initialData?.reminders || false);
 
   useEffect(() => {
     if (initialData) {
-      setForm({
-        name: initialData.name || "",
-        dosage: initialData.dosage || "",
-        unit: initialData.unit || "mg",
-        type: initialData.type || "pill",
-        frequency: initialData.frequency || "Daily",
-        times: initialData.times || [],
-        startDate: initialData.startDate || "",
-        endDate: initialData.endDate || "",
-        reminders: initialData.reminders || false,
-        notes: initialData.notes || "",
-        id: initialData.id || initialData._id,
-      });
+      setName(initialData.name);
+      setDosage(initialData.dosage);
+      setUnit(initialData.unit);
+      setType(initialData.type);
+      setFrequency(initialData.frequency);
+      setTimes(initialData.times.join(", "));
+      setSchedule(initialData.schedule);
+      setStartDate(initialData.startDate);
+      setEndDate(initialData.endDate);
+      setNotes(initialData.notes);
+      setReminders(initialData.reminders);
     }
   }, [initialData]);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleTimesChange = (e, index) => {
-    const newTimes = [...form.times];
-    newTimes[index] = e.target.value;
-    setForm({ ...form, times: newTimes });
-  };
-
-  const addTime = () =>
-    setForm((prev) => ({ ...prev, times: [...prev.times, ""] }));
-  const removeTime = (index) =>
-    setForm((prev) => ({
-      ...prev,
-      times: prev.times.filter((_, i) => i !== index),
-    }));
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(form);
-    if (!initialData) {
-      setForm({
-        name: "",
-        dosage: "",
-        unit: "mg",
-        type: "pill",
-        frequency: "Daily",
-        times: [],
-        startDate: "",
-        endDate: "",
-        reminders: false,
-        notes: "",
-      });
-    }
+    onSave({
+      id: initialData?.id,
+      name,
+      dosage,
+      unit,
+      type,
+      frequency,
+      times: times.split(",").map((t) => t.trim()),
+      schedule,
+      startDate,
+      endDate,
+      notes,
+      reminders,
+      status: initialData?.status || "pending",
+    });
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="bg-white shadow-lg rounded-xl p-6 border border-gray-200 mb-6"
-    >
-      <h2 className="text-xl font-semibold text-blue-800 mb-4">
-        {initialData ? "Edit Medication" : "Add Medication"}
-      </h2>
-
-      <input
-        type="text"
-        name="name"
-        placeholder="Medication Name"
-        value={form.name}
-        onChange={handleChange}
-        required
-        className="w-full mb-3 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
-      />
-
-      <div className="flex gap-2 mb-3">
+    <form onSubmit={handleSubmit} className="bg-white shadow p-4 rounded mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <input
-          type="number"
-          name="dosage"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Medication Name"
+          required
+          className="border p-2 rounded"
+        />
+        <input
+          value={dosage}
+          onChange={(e) => setDosage(e.target.value)}
           placeholder="Dosage"
-          value={form.dosage}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+          required
+          className="border p-2 rounded"
+        />
+        <input
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          placeholder="Unit (mg/ml)"
+          className="border p-2 rounded"
+        />
+        <input
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          placeholder="Type (pill/liquid)"
+          className="border p-2 rounded"
+        />
+        <input
+          value={frequency}
+          onChange={(e) => setFrequency(e.target.value)}
+          placeholder="Frequency"
+          className="border p-2 rounded"
+        />
+        <input
+          value={times}
+          onChange={(e) => setTimes(e.target.value)}
+          placeholder="Times (comma separated)"
+          className="border p-2 rounded"
         />
         <select
-          name="unit"
-          value={form.unit}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+          value={schedule}
+          onChange={(e) => setSchedule(e.target.value)}
+          className="border p-2 rounded"
         >
-          <option value="mg">mg</option>
-          <option value="ml">ml</option>
-          <option value="pills">pills</option>
+          <option value="morning">Morning</option>
+          <option value="evening">Evening</option>
         </select>
-      </div>
-
-      <div className="flex gap-2 mb-3">
-        <select
-          name="type"
-          value={form.type}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
-        >
-          <option value="pill">Pill</option>
-          <option value="capsule">Capsule</option>
-          <option value="syrup">Syrup</option>
-          <option value="injection">Injection</option>
-        </select>
-
-        <select
-          name="frequency"
-          value={form.frequency}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
-        >
-          <option value="Daily">Daily</option>
-          <option value="Weekly">Weekly</option>
-          <option value="Custom">Custom</option>
-        </select>
-      </div>
-
-      <div className="mb-3">
-        <label className="block mb-1">Times:</label>
-        {form.times.map((time, index) => (
-          <div key={index} className="flex gap-2 mb-2">
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => handleTimesChange(e, index)}
-              className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
-            />
-            {form.times.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeTime(index)}
-                className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addTime}
-          className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-        >
-          Add Time
-        </button>
-      </div>
-
-      <div className="flex gap-2 mb-3">
         <input
           type="date"
-          name="startDate"
-          value={form.startDate}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="border p-2 rounded"
         />
         <input
           type="date"
-          name="endDate"
-          value={form.endDate}
-          onChange={handleChange}
-          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="border p-2 rounded"
         />
-      </div>
-
-      <label className="flex items-center gap-2 mb-3">
         <input
-          type="checkbox"
-          name="reminders"
-          checked={form.reminders}
-          onChange={handleChange}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes"
+          className="border p-2 rounded col-span-1 sm:col-span-2"
         />
-        Enable reminders
-      </label>
-
-      <textarea
-        name="notes"
-        placeholder="Additional notes"
-        value={form.notes}
-        onChange={handleChange}
-        className="w-full mb-4 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
-      />
-
-      <div className="flex justify-end gap-3">
-        {initialData && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition"
-          >
-            Cancel
-          </button>
-        )}
+        <label className="flex items-center gap-2 col-span-1 sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={reminders}
+            onChange={(e) => setReminders(e.target.checked)}
+          />{" "}
+          Enable Reminders
+        </label>
+      </div>
+      <div className="mt-4 flex gap-2">
         <button
           type="submit"
-          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
         >
-          {initialData ? "Update" : "Add"}
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+        >
+          Cancel
         </button>
       </div>
     </form>
