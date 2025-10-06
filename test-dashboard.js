@@ -6,7 +6,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadData() {
-      const result = await fetchDashboardData("68d1810de1e8d2230d03390a");
+      const filters = {
+        status: "",
+        fromDate: "2025-10-01",
+        toDate: "2025-10-05",
+      };
+
+      const result = await fetchDashboardData("68d1810de1e8d2230d03390a", filters);
       console.log("📦 Dashboard data:", result);
       setData(result);
     }
