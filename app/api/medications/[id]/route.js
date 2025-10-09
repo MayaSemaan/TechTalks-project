@@ -28,6 +28,7 @@ export async function PUT(req, { params }) {
         { status: 404 }
       );
 
+    // Authorization
     if (user.role === "family") {
       const linkedIds = user.linkedFamily.map((i) => i.toString());
       if (!linkedIds.includes(med.userId.toString()))
@@ -38,18 +39,19 @@ export async function PUT(req, { params }) {
 
     const data = await req.json();
 
-    // ✅ Merge existing doses to preserve status
+    // ✅ Update times array in DB if provided
     if (data.times) {
+      med.times = data.times; // <-- store new times
       const existingDoses = med.doses || [];
-      const newDoses = data.times.map((t) => {
+      med.doses = data.times.map((t) => {
         const found = existingDoses.find((d) => d.time === t);
         return (
           found || { time: t, taken: null, date: med.startDate || new Date() }
         );
       });
-      med.doses = newDoses;
     }
 
+    // Update other fields
     const fields = [
       "name",
       "dosage",
@@ -66,7 +68,7 @@ export async function PUT(req, { params }) {
       if (data[f] !== undefined) med[f] = data[f];
     });
 
-    // ✅ Update single dose if called
+    // ✅ Update a single dose status if sent
     if (data.time && data.status) {
       const dose = med.doses.find((d) => d.time === data.time);
       if (dose) {

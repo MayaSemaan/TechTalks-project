@@ -1,1 +1,6 @@
-{}
+{
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/api/medications/route": "app/api/medications/route.js",
+  "/api/medications/[id]/route": "app/api/medications/[id]/route.js",
+  "/medications/page": "app/medications/page.js"
+}

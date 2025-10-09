@@ -6,25 +6,27 @@ export default function MedicationCard({ med, onEdit, onDelete, onDoseClick }) {
   const [localDoses, setLocalDoses] = useState([]);
   const [remindersOn, setRemindersOn] = useState(false);
 
+  // ✅ Re-run whenever med.times, med.doses, or reminders change
   useEffect(() => {
     setRemindersOn(!!med.reminders);
 
     const sortedTimes = [...(med.times || [])].sort();
-    setLocalDoses(
-      sortedTimes.map((time) => {
-        const dose = med.doses?.find((d) => d.time === time) || {};
-        const status =
-          dose.taken === true || dose.taken === "taken"
-            ? "taken"
-            : dose.taken === false || dose.taken === "missed"
-            ? "missed"
-            : "pending";
-        return { time, status };
-      })
-    );
-  }, [med]);
+    const updatedDoses = sortedTimes.map((time) => {
+      const dose = med.doses?.find((d) => d.time === time) || {};
+      const status =
+        dose.taken === true || dose.taken === "taken"
+          ? "taken"
+          : dose.taken === false || dose.taken === "missed"
+          ? "missed"
+          : "pending";
+      return { time, status };
+    });
+
+    setLocalDoses(updatedDoses);
+  }, [med.times, med.doses, med.reminders]); // 👈 dependencies expanded
 
   const handleMark = async (time, status) => {
+    // Update local state immediately
     setLocalDoses((prev) =>
       prev.map((d) => (d.time === time ? { ...d, status } : d))
     );

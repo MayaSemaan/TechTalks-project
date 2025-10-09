@@ -18,32 +18,44 @@ export default function MedicationsPage() {
       const res = await axios.get("/api/medications", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const meds = Array.isArray(res.data) ? res.data : [];
 
-      const normalized = meds.map((med) => {
+      const fetchedMeds = Array.isArray(res.data) ? res.data : [];
+
+      const normalized = fetchedMeds.map((med) => {
         const dosesByTime = {};
         (med.doses || []).forEach((d) => {
-          dosesByTime[d.time] = d;
+          const key = d.time;
+          if (
+            !dosesByTime[key] ||
+            new Date(d.date) > new Date(dosesByTime[key].date)
+          ) {
+            dosesByTime[key] = d;
+          }
         });
 
         const doses = (med.times || []).map((t) => {
           const d = dosesByTime[t] || {};
+          let takenStatus = "pending";
+          if (d.taken === true || d.taken === "taken") takenStatus = "taken";
+          else if (d.taken === false || d.taken === "missed")
+            takenStatus = "missed";
           return {
             time: t,
-            taken:
-              d.taken === true
-                ? "taken"
-                : d.taken === false
-                ? "missed"
-                : "pending",
+            taken: takenStatus,
             date: d.date || new Date().toISOString(),
           };
         });
 
+        const customInterval =
+          med.schedule === "custom"
+            ? med.customInterval || { number: 1, unit: "day" }
+            : null;
+
         return {
           ...med,
+          times: med.times || [],
           doses,
-          customInterval: med.customInterval || null,
+          customInterval,
           reminders: med.reminders || false,
         };
       });
@@ -68,7 +80,7 @@ export default function MedicationsPage() {
         ...med,
         dosage: Number(med.dosage) || 0,
         customInterval:
-          med.schedule === "custom"
+          med.schedule === "custom" && med.customInterval
             ? {
                 number: Number(med.customInterval.number) || 1,
                 unit: med.customInterval.unit || "day",
@@ -76,26 +88,65 @@ export default function MedicationsPage() {
             : null,
       };
 
-      let res;
       if (editingMed) {
-        res = await axios.put(`/api/medications/${editingMed._id}`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
+        // ✅ Merge old doses with new times
+        const existingDoses = editingMed.doses || [];
+        const updatedTimes = payload.times || [];
+
+        const mergedDoses = updatedTimes.map((time) => {
+          const existing = existingDoses.find((d) => d.time === time);
+          return (
+            existing || {
+              time,
+              taken: "pending",
+              date: new Date().toISOString(),
+            }
+          );
         });
+
+        const updatedMed = {
+          ...editingMed,
+          ...payload,
+          times: updatedTimes, // ✅ important: update times array
+          doses: mergedDoses,
+          customInterval:
+            payload.schedule === "custom"
+              ? payload.customInterval || { number: 1, unit: "day" }
+              : null,
+          reminders: payload.reminders || false,
+        };
+
+        const res = await axios.put(
+          `/api/medications/${editingMed._id}`,
+          updatedMed,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
         setMedications((prev) =>
-          prev.map((m) => (m._id === editingMed._id ? res.data : m))
+          prev.map((m) => (m._id === editingMed._id ? updatedMed : m))
         );
       } else {
-        res = await axios.post("/api/medications", payload, {
+        // ✅ New medication
+        const res = await axios.post("/api/medications", payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setMedications((prev) => [
-          ...prev,
-          {
-            ...res.data,
-            doses: res.data.doses || [],
-            reminders: res.data.reminders || false,
-          },
-        ]);
+
+        const newMed = {
+          ...res.data,
+          times: res.data.times || [],
+          doses: (res.data.times || []).map((t, i) => ({
+            time: t,
+            taken: res.data.doses?.[i]?.taken || "pending",
+            date: res.data.doses?.[i]?.date || new Date().toISOString(),
+          })),
+          customInterval:
+            res.data.schedule === "custom"
+              ? res.data.customInterval || { number: 1, unit: "day" }
+              : null,
+          reminders: res.data.reminders || false,
+        };
+
+        setMedications((prev) => [...prev, newMed]);
       }
 
       setShowForm(false);
@@ -114,6 +165,7 @@ export default function MedicationsPage() {
       await axios.delete(`/api/medications/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setMedications((prev) => prev.filter((m) => m._id !== id));
     } catch (err) {
       console.error("Failed to delete medication:", err.message || err);
