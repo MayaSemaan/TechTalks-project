@@ -1,141 +1,338 @@
 "use client";
+
 import { useState, useEffect } from "react";
+import jwtDecode from "jwt-decode";
 
 export default function MedicationForm({ onSave, onCancel, initialData }) {
-  const [name, setName] = useState(initialData?.name || "");
-  const [dosage, setDosage] = useState(initialData?.dosage || "");
-  const [unit, setUnit] = useState(initialData?.unit || "");
-  const [type, setType] = useState(initialData?.type || "");
-  const [frequency, setFrequency] = useState(initialData?.frequency || "");
-  const [times, setTimes] = useState(initialData?.times?.join(", ") || "");
-  const [schedule, setSchedule] = useState(initialData?.schedule || "morning");
-  const [startDate, setStartDate] = useState(initialData?.startDate || "");
-  const [endDate, setEndDate] = useState(initialData?.endDate || "");
-  const [notes, setNotes] = useState(initialData?.notes || "");
-  const [reminders, setReminders] = useState(initialData?.reminders || false);
+  const defaultMed = {
+    name: "",
+    dosage: 0,
+    unit: "mg",
+    type: "tablet",
+    schedule: "daily",
+    customInterval: { number: 1, unit: "day" },
+    times: [],
+    startDate: "",
+    endDate: "",
+    notes: "",
+    reminders: false,
+  };
+
+  const formatDateInput = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return isNaN(d) ? "" : d.toISOString().split("T")[0];
+  };
+
+  const medData = { ...defaultMed, ...initialData };
+
+  const [name, setName] = useState(medData.name);
+  const [dosage, setDosage] = useState(medData.dosage);
+  const [unit, setUnit] = useState(medData.unit);
+  const [type, setType] = useState(medData.type);
+  const [schedule, setSchedule] = useState(medData.schedule);
+  const [customInterval, setCustomInterval] = useState(
+    medData.customInterval || { number: 1, unit: "day" }
+  );
+  const [times, setTimes] = useState(
+    Array.isArray(medData.times) ? medData.times : []
+  );
+  const [newTime, setNewTime] = useState("");
+  const [startDate, setStartDate] = useState(
+    formatDateInput(medData.startDate)
+  );
+  const [endDate, setEndDate] = useState(formatDateInput(medData.endDate));
+  const [notes, setNotes] = useState(medData.notes || "");
+  const [reminders, setReminders] = useState(Boolean(medData.reminders));
+  const [timeError, setTimeError] = useState(false);
+
+  const unitOptions = ["mg", "ml", "pills", "drops"];
+  const typeOptions = ["tablet", "capsule", "syrup", "injection"];
+  const scheduleOptions = ["daily", "weekly", "monthly", "custom"];
+  const intervalUnits = ["day", "week", "month"];
 
   useEffect(() => {
-    if (initialData) {
-      setName(initialData.name);
-      setDosage(initialData.dosage);
-      setUnit(initialData.unit);
-      setType(initialData.type);
-      setFrequency(initialData.frequency);
-      setTimes(initialData.times.join(", "));
-      setSchedule(initialData.schedule);
-      setStartDate(initialData.startDate);
-      setEndDate(initialData.endDate);
-      setNotes(initialData.notes);
-      setReminders(initialData.reminders);
+    if (schedule !== "custom") {
+      setCustomInterval({ number: 1, unit: "day" });
     }
-  }, [initialData]);
+  }, [schedule]);
+
+  const addTime = () => {
+    if (newTime && !times.includes(newTime)) {
+      setTimes([...times, newTime]);
+      setNewTime("");
+      setTimeError(false);
+    }
+  };
+
+  const removeTime = (t) => setTimes(times.filter((time) => time !== t));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({
-      id: initialData?.id,
-      name,
-      dosage,
+
+    // Validation: dosage >= 0
+    if (dosage < 0) {
+      alert("Dosage cannot be negative.");
+      return;
+    }
+
+    // Validation: start and end dates required
+    if (!startDate || !endDate) {
+      alert("Please choose both start and end dates.");
+      return;
+    }
+
+    // Validation: end date >= start date
+    if (endDate < startDate) {
+      alert("End date cannot be before start date.");
+      return;
+    }
+
+    // Validation: times required
+    if (times.length === 0) {
+      setTimeError(true);
+      return;
+    }
+
+    let userId = null;
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        userId = decoded.id || decoded._id;
+      } catch {}
+    }
+    if (initialData?.userId) userId = initialData.userId;
+
+    const doses = times.map((time) => ({
+      time,
+      taken: null,
+      date: startDate
+        ? new Date(startDate).toISOString()
+        : new Date().toISOString(),
+    }));
+
+    const payload = {
+      name: name || "Unnamed Medication",
+      dosage: Number(dosage),
       unit,
       type,
-      frequency,
-      times: times.split(",").map((t) => t.trim()),
       schedule,
+      times,
       startDate,
       endDate,
       notes,
-      reminders,
-      status: initialData?.status || "pending",
-    });
+      reminders: Boolean(reminders),
+      userId,
+      doses,
+    };
+
+    if (schedule === "custom") {
+      payload.customInterval = {
+        number: Number(customInterval.number) || 1,
+        unit: customInterval.unit || "day",
+      };
+    }
+
+    onSave(payload);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white shadow p-4 rounded mb-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 bg-white p-6 rounded-xl shadow-md"
+    >
+      {/* Name */}
+      <input
+        type="text"
+        placeholder="Medication Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+        className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
+      />
+
+      {/* Dosage, Unit, Type */}
+      <div className="flex gap-2">
         <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Medication Name"
-          required
-          className="border p-2 rounded"
-        />
-        <input
+          type="number"
+          placeholder="Dosage"
+          min={0}
           value={dosage}
           onChange={(e) => setDosage(e.target.value)}
-          placeholder="Dosage"
           required
-          className="border p-2 rounded"
+          className="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
         />
-        <input
+        <select
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
-          placeholder="Unit (mg/ml)"
-          className="border p-2 rounded"
-        />
-        <input
+          className="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
+        >
+          {unitOptions.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+        <select
           value={type}
           onChange={(e) => setType(e.target.value)}
-          placeholder="Type (pill/liquid)"
-          className="border p-2 rounded"
-        />
-        <input
-          value={frequency}
-          onChange={(e) => setFrequency(e.target.value)}
-          placeholder="Frequency"
-          className="border p-2 rounded"
-        />
-        <input
-          value={times}
-          onChange={(e) => setTimes(e.target.value)}
-          placeholder="Times (comma separated)"
-          className="border p-2 rounded"
-        />
+          className="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
+        >
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Schedule */}
+      <div className="flex flex-col gap-2">
+        <label className="font-semibold">Frequency</label>
         <select
           value={schedule}
           onChange={(e) => setSchedule(e.target.value)}
-          className="border p-2 rounded"
+          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
         >
-          <option value="morning">Morning</option>
-          <option value="evening">Evening</option>
+          {scheduleOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
+
+        {schedule === "custom" && (
+          <div className="flex gap-2 mt-2">
+            <input
+              type="number"
+              min={1}
+              value={customInterval.number}
+              onChange={(e) =>
+                setCustomInterval({ ...customInterval, number: e.target.value })
+              }
+              className="flex-1 border border-gray-300 rounded-xl p-2 focus:ring-2 focus:ring-blue-400"
+            />
+            <select
+              value={customInterval.unit}
+              onChange={(e) =>
+                setCustomInterval({ ...customInterval, unit: e.target.value })
+              }
+              className="flex-1 border border-gray-300 rounded-xl p-2 focus:ring-2 focus:ring-blue-400"
+            >
+              {intervalUnits.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Times */}
+      <div className="space-y-2">
+        <label className="font-semibold">Times of Day</label>
+        <div className="flex gap-2">
+          <input
+            type="time"
+            value={newTime}
+            onChange={(e) => setNewTime(e.target.value)}
+            className="flex-1 border border-gray-300 rounded-xl p-2 focus:ring-2 focus:ring-blue-400"
+          />
+          <button
+            type="button"
+            onClick={addTime}
+            className="bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition"
+          >
+            Add Time
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {times.map((t) => (
+            <div
+              key={t}
+              className="bg-gray-200 px-3 py-1 rounded-full flex items-center gap-1"
+            >
+              <span>{t}</span>
+              <button
+                type="button"
+                onClick={() => removeTime(t)}
+                className="text-red-500 font-bold"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        {timeError && (
+          <p className="text-red-500 text-sm mt-1">
+            Please add at least one time for the medication.
+          </p>
+        )}
+      </div>
+
+      {/* Dates */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="block font-semibold mb-1">Start Date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            required
+            className="w-full border border-gray-300 rounded-xl p-2 focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block font-semibold mb-1">End Date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            required
+            min={startDate}
+            className="w-full border border-gray-300 rounded-xl p-2 focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+      </div>
+
+      {/* Reminders */}
+      <div className="flex items-center gap-2">
         <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="border p-2 rounded"
+          type="checkbox"
+          checked={reminders}
+          onChange={(e) => setReminders(e.target.checked)}
+          id="reminders"
+          className="h-4 w-4"
         />
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="border p-2 rounded"
-        />
-        <input
+        <label htmlFor="reminders">Enable Reminders</label>
+      </div>
+
+      {/* Notes */}
+      <div className="mt-2">
+        <label className="block font-semibold mb-1">Notes (optional)</label>
+        <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes"
-          className="border p-2 rounded col-span-1 sm:col-span-2"
+          placeholder="Any additional information..."
+          className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
+          rows={3}
         />
-        <label className="flex items-center gap-2 col-span-1 sm:col-span-2">
-          <input
-            type="checkbox"
-            checked={reminders}
-            onChange={(e) => setReminders(e.target.checked)}
-          />{" "}
-          Enable Reminders
-        </label>
       </div>
-      <div className="mt-4 flex gap-2">
+
+      {/* Buttons */}
+      <div className="flex gap-2 mt-4">
         <button
           type="submit"
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+          className="flex-1 bg-blue-500 text-white py-3 rounded-xl hover:bg-blue-600 transition"
         >
           Save
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition"
+          className="flex-1 bg-gray-300 py-3 rounded-xl hover:bg-gray-400 transition"
         >
           Cancel
         </button>

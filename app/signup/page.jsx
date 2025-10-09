@@ -39,8 +39,9 @@ export default function Signup() {
     }
 
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_BASE}/signup`, form);
-      setSuccessMsg("Signup successful, redirecting...");
+      // ✅ Correct API path
+      await axios.post("/api/register", form);
+      setSuccessMsg("Signup successful, redirecting to login...");
       setTimeout(() => router.push("/login"), 2000);
     } catch (err) {
       setError(err.response?.data?.message || "Error during signup.");

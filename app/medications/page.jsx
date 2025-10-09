@@ -1,125 +1,196 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import axios from "axios";
-import MedicationForm from "../../components/MedicationForm";
-import MedicationCard from "../../components/MedicationCard";
-
-const getBackendURL = () => {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    if (hostname === "localhost" || hostname === "127.0.0.1")
-      return "http://127.0.0.1:5000";
-    return `http://${hostname}:5000`;
-  }
-  return "http://127.0.0.1:5000";
-};
+import MedicationForm from "../components/MedicationForm";
+import MedicationCard from "../components/MedicationCard";
 
 export default function MedicationsPage() {
   const [medications, setMedications] = useState([]);
-  const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const BASE_URL = getBackendURL();
+  const [editingMed, setEditingMed] = useState(null);
 
   const fetchMedications = async () => {
     try {
-      const res = await axios.get(`${BASE_URL}/medications`);
-      setMedications(res.data);
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await axios.get("/api/medications", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const meds = Array.isArray(res.data) ? res.data : [];
+
+      const normalized = meds.map((med) => {
+        const dosesByTime = {};
+        (med.doses || []).forEach((d) => {
+          dosesByTime[d.time] = d;
+        });
+
+        const doses = (med.times || []).map((t) => {
+          const d = dosesByTime[t] || {};
+          return {
+            time: t,
+            taken:
+              d.taken === true
+                ? "taken"
+                : d.taken === false
+                ? "missed"
+                : "pending",
+            date: d.date || new Date().toISOString(),
+          };
+        });
+
+        return {
+          ...med,
+          doses,
+          customInterval: med.customInterval || null,
+          reminders: med.reminders || false,
+        };
+      });
+
+      setMedications(normalized);
     } catch (err) {
-      console.error("Failed to fetch medications:", err.message);
-      alert("Cannot reach the backend. Make sure your server is running.");
+      console.error("Failed to fetch medications:", err.message || err);
+      setMedications([]);
     }
   };
 
   useEffect(() => {
     fetchMedications();
-    const interval = setInterval(fetchMedications, 15000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleSave = async (med) => {
     try {
-      if (editing) {
-        await axios.put(`${BASE_URL}/medications/${med.id}`, med);
-        setMedications((prev) => prev.map((m) => (m.id === med.id ? med : m)));
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const payload = {
+        ...med,
+        dosage: Number(med.dosage) || 0,
+        customInterval:
+          med.schedule === "custom"
+            ? {
+                number: Number(med.customInterval.number) || 1,
+                unit: med.customInterval.unit || "day",
+              }
+            : null,
+      };
+
+      let res;
+      if (editingMed) {
+        res = await axios.put(`/api/medications/${editingMed._id}`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setMedications((prev) =>
+          prev.map((m) => (m._id === editingMed._id ? res.data : m))
+        );
       } else {
-        const res = await axios.post(`${BASE_URL}/medications`, med);
-        setMedications((prev) => [...prev, res.data]);
+        res = await axios.post("/api/medications", payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setMedications((prev) => [
+          ...prev,
+          {
+            ...res.data,
+            doses: res.data.doses || [],
+            reminders: res.data.reminders || false,
+          },
+        ]);
       }
-      setEditing(null);
+
       setShowForm(false);
+      setEditingMed(null);
     } catch (err) {
-      console.error("Failed to save medication:", err.message);
-      alert("Failed to save medication");
+      console.error("Failed to save medication:", err.message || err);
+      alert(`Failed to save medication: ${err.message || err}`);
     }
-  };
-
-  const handleStatusChange = async (id, status) => {
-    try {
-      await axios.put(`${BASE_URL}/medications/${id}`, { status });
-      setMedications((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, status } : m))
-      );
-    } catch (err) {
-      console.error("Failed to update status:", err.message);
-      alert("Failed to update status");
-    }
-  };
-
-  const handleEdit = (med) => {
-    setEditing(med);
-    setShowForm(true);
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this medication?")) return;
     try {
-      await axios.delete(`${BASE_URL}/medications/${id}`);
-      setMedications((prev) => prev.filter((m) => m.id !== id));
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      await axios.delete(`/api/medications/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMedications((prev) => prev.filter((m) => m._id !== id));
     } catch (err) {
-      console.error("Failed to delete medication:", err.message);
-      alert("Failed to delete medication");
+      console.error("Failed to delete medication:", err.message || err);
+      alert(`Failed to delete medication: ${err.message || err}`);
+    }
+  };
+
+  const handleDoseClick = async (medId, time, status) => {
+    setMedications((prev) =>
+      prev.map((m) =>
+        m._id === medId
+          ? {
+              ...m,
+              doses: m.doses.map((d) =>
+                d.time === time ? { ...d, taken: status } : d
+              ),
+            }
+          : m
+      )
+    );
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      await axios.put(
+        `/api/medications/${medId}`,
+        { time, status },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error("Failed to update dose:", err.message || err);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6 text-blue-900">
-          My Medications
-        </h1>
+    <div className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">Medications</h1>
 
-        <button
-          onClick={() => setShowForm(true)}
-          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          + Add Medication
-        </button>
+      {showForm ? (
+        <MedicationForm
+          onSave={handleSave}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingMed(null);
+          }}
+          initialData={editingMed}
+        />
+      ) : (
+        <div>
+          <button
+            onClick={() => setShowForm(true)}
+            className="mb-6 bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition"
+          >
+            ➕ Add Medication
+          </button>
 
-        {showForm && (
-          <MedicationForm
-            onSave={handleSave}
-            onCancel={() => {
-              setShowForm(false);
-              setEditing(null);
-            }}
-            initialData={editing}
-          />
-        )}
-
-        {medications.length === 0 ? (
-          <p className="text-gray-600">No medications yet.</p>
-        ) : (
-          medications.map((med) => (
-            <MedicationCard
-              key={med.id}
-              med={med}
-              onStatusChange={handleStatusChange}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))
-        )}
-      </div>
+          {medications.length === 0 ? (
+            <p className="text-gray-500">No medications yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {medications.filter(Boolean).map((med) => (
+                <MedicationCard
+                  key={med._id}
+                  med={med}
+                  onEdit={(m) => {
+                    setEditingMed(m);
+                    setShowForm(true);
+                  }}
+                  onDelete={handleDelete}
+                  onDoseClick={handleDoseClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

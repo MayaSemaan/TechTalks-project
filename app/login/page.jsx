@@ -20,19 +20,12 @@ export default function Login() {
     setError("");
 
     try {
-      // ✅ Updated API path using environment variable
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE}/login`,
-        form
-      );
-      console.log("Login successful:", res.data);
+      const res = await axios.post("/api/login", form);
 
-      // Save token if backend provides one
       if (res.data.token) {
         localStorage.setItem("token", res.data.token);
       }
 
-      // Redirect to user dashboard
       router.push(`/dashboard/${res.data.user._id}`);
     } catch (err) {
       setError(err.response?.data?.message || "Invalid email or password.");

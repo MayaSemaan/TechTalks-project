@@ -1,143 +1,123 @@
 "use client";
+
 import { useState, useEffect } from "react";
 
-export default function MedicationCard({
-  med,
-  onStatusChange,
-  onEdit,
-  onDelete,
-}) {
-  const scheduleTimes = { morning: "08:00", evening: "20:00" };
-  const medTime = scheduleTimes[med.schedule] || "23:59";
+export default function MedicationCard({ med, onEdit, onDelete, onDoseClick }) {
+  const [localDoses, setLocalDoses] = useState([]);
+  const [remindersOn, setRemindersOn] = useState(false);
 
-  const [isDueSoon, setIsDueSoon] = useState(false);
-
-  // Check if medication is due soon (overdue)
   useEffect(() => {
-    const checkDue = () => {
-      if (med.status === "taken" || med.status === "missed") {
-        setIsDueSoon(false);
-        return;
-      }
-      const now = new Date();
-      const [hours, minutes] = medTime.split(":").map(Number);
-      const medDateTime = new Date();
-      medDateTime.setHours(hours, minutes, 0, 0);
+    setRemindersOn(!!med.reminders);
 
-      // Overdue within 1 hour window
-      const oneHour = 60 * 60 * 1000;
-      setIsDueSoon(
-        now >= medDateTime && now <= new Date(medDateTime.getTime() + oneHour)
-      );
-    };
+    const sortedTimes = [...(med.times || [])].sort();
+    setLocalDoses(
+      sortedTimes.map((time) => {
+        const dose = med.doses?.find((d) => d.time === time) || {};
+        const status =
+          dose.taken === true || dose.taken === "taken"
+            ? "taken"
+            : dose.taken === false || dose.taken === "missed"
+            ? "missed"
+            : "pending";
+        return { time, status };
+      })
+    );
+  }, [med]);
 
-    checkDue();
-    const interval = setInterval(checkDue, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [med.status, medTime]);
+  const handleMark = async (time, status) => {
+    setLocalDoses((prev) =>
+      prev.map((d) => (d.time === time ? { ...d, status } : d))
+    );
 
-  const handleStatusClick = async (status) => {
-    try {
-      await fetch(`http://localhost:5000/medications/${med.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      onStatusChange(med.id, status);
-    } catch {
-      alert("Failed to update status");
+    if (typeof onDoseClick === "function") {
+      await onDoseClick(med._id, time, status);
     }
   };
 
-  const cardStyle = {
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    padding: "12px",
-    marginBottom: "10px",
-    backgroundColor:
-      med.status === "taken"
-        ? "#d4edda"
-        : med.status === "missed"
-        ? "#f8d7da"
-        : isDueSoon
-        ? "#fff3cd"
-        : "#f8f8f8",
+  const getStatusColor = (status) =>
+    status === "taken"
+      ? "text-green-500"
+      : status === "missed"
+      ? "text-red-500"
+      : "text-orange-500";
+
+  const formatDate = (dateStr) =>
+    dateStr ? new Date(dateStr).toLocaleDateString() : "-";
+
+  const formatCustomInterval = (interval) => {
+    if (!interval) return "";
+    const { number, unit } = interval;
+    return `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
   };
 
-  const statusColor =
-    med.status === "taken"
-      ? "green"
-      : med.status === "missed"
-      ? "red"
-      : "orange";
-
   return (
-    <div style={cardStyle}>
-      <h3>
-        {med.name} - {med.dosage} {med.unit} {med.type ? `(${med.type})` : ""}
+    <div className="p-4 rounded-xl shadow-md mb-4 bg-white">
+      <h3 className="font-semibold text-lg">
+        {med.name} - {med.dosage} {med.unit} ({med.type})
       </h3>
-      <p>Frequency: {med.frequency || "N/A"}</p>
-      <p>
-        Schedule: {med.schedule} ({medTime})
+
+      <p className="text-sm text-gray-600 mt-1">
+        <strong>Frequency:</strong>{" "}
+        {med.schedule === "custom"
+          ? formatCustomInterval(med.customInterval)
+          : med.schedule?.charAt(0).toUpperCase() + med.schedule?.slice(1)}
       </p>
-      <p>
-        Status:{" "}
-        <span style={{ color: statusColor, fontWeight: "bold" }}>
-          {med.status || "Pending"}
-        </span>
+
+      <p className="text-sm text-gray-600">
+        <strong>Start:</strong> {formatDate(med.startDate)} |{" "}
+        <strong>End:</strong> {formatDate(med.endDate)}
       </p>
-      <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-        <button
-          onClick={() => handleStatusClick("taken")}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "green",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
-          ✅ Taken
-        </button>
-        <button
-          onClick={() => handleStatusClick("missed")}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "red",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
-          ❌ Missed
-        </button>
+
+      <p className="text-sm mt-1">Reminders: {remindersOn ? "ON" : "OFF"}</p>
+
+      {localDoses.length > 0 && (
+        <div className="mt-2">
+          {localDoses.map((d, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between border-t pt-2 mt-2"
+            >
+              <span className="text-sm">
+                {d.time} –{" "}
+                <span className={`font-bold ${getStatusColor(d.status)}`}>
+                  {d.status}
+                </span>
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleMark(d.time, "taken")}
+                  className="bg-green-500 text-white px-2 py-1 rounded-xl text-xs hover:bg-green-600"
+                >
+                  Taken
+                </button>
+                <button
+                  onClick={() => handleMark(d.time, "missed")}
+                  className="bg-red-500 text-white px-2 py-1 rounded-xl text-xs hover:bg-red-600"
+                >
+                  Missed
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {med.notes && (
+        <p className="mt-2 text-sm text-gray-700">Notes: {med.notes}</p>
+      )}
+
+      <div className="flex gap-2 mt-3 flex-wrap">
         <button
           onClick={() => onEdit(med)}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#2196F3",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
+          className="bg-blue-500 text-white px-3 py-1 rounded-xl hover:bg-blue-600 transition"
         >
-          ✏️ Edit
+          Edit
         </button>
         <button
-          onClick={() => onDelete(med.id)}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#f44336",
-            color: "#fff",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
+          onClick={() => onDelete(med._id)}
+          className="bg-gray-500 text-white px-3 py-1 rounded-xl hover:bg-gray-600 transition"
         >
-          🗑️ Delete
+          Delete
         </button>
       </div>
     </div>
