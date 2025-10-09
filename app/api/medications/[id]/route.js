@@ -38,7 +38,35 @@ export async function PUT(req, { params }) {
 
     const data = await req.json();
 
-    // ✅ update dose by time, preserve status
+    // ✅ Merge existing doses to preserve status
+    if (data.times) {
+      const existingDoses = med.doses || [];
+      const newDoses = data.times.map((t) => {
+        const found = existingDoses.find((d) => d.time === t);
+        return (
+          found || { time: t, taken: null, date: med.startDate || new Date() }
+        );
+      });
+      med.doses = newDoses;
+    }
+
+    const fields = [
+      "name",
+      "dosage",
+      "unit",
+      "type",
+      "schedule",
+      "customInterval",
+      "startDate",
+      "endDate",
+      "reminders",
+      "notes",
+    ];
+    fields.forEach((f) => {
+      if (data[f] !== undefined) med[f] = data[f];
+    });
+
+    // ✅ Update single dose if called
     if (data.time && data.status) {
       const dose = med.doses.find((d) => d.time === data.time);
       if (dose) {
@@ -49,8 +77,6 @@ export async function PUT(req, { params }) {
             ? false
             : null;
       }
-    } else {
-      Object.assign(med, data);
     }
 
     await med.save();

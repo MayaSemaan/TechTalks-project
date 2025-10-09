@@ -16,6 +16,7 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
     endDate: "",
     notes: "",
     reminders: false,
+    doses: [],
   };
 
   const formatDateInput = (dateStr) => {
@@ -70,25 +71,21 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Validation: dosage >= 0
     if (dosage < 0) {
       alert("Dosage cannot be negative.");
       return;
     }
 
-    // Validation: start and end dates required
     if (!startDate || !endDate) {
       alert("Please choose both start and end dates.");
       return;
     }
 
-    // Validation: end date >= start date
     if (endDate < startDate) {
       alert("End date cannot be before start date.");
       return;
     }
 
-    // Validation: times required
     if (times.length === 0) {
       setTimeError(true);
       return;
@@ -104,13 +101,22 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
     }
     if (initialData?.userId) userId = initialData.userId;
 
-    const doses = times.map((time) => ({
-      time,
-      taken: null,
-      date: startDate
-        ? new Date(startDate).toISOString()
-        : new Date().toISOString(),
-    }));
+    const existingDoses = Array.isArray(initialData?.doses)
+      ? initialData.doses
+      : [];
+
+    const doses = times.map((time) => {
+      const existing = existingDoses.find((d) => d.time === time);
+      return {
+        time,
+        taken: existing?.taken ?? null,
+        date:
+          existing?.date ??
+          (startDate
+            ? new Date(startDate).toISOString()
+            : new Date().toISOString()),
+      };
+    });
 
     const payload = {
       name: name || "Unnamed Medication",
@@ -142,7 +148,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
       onSubmit={handleSubmit}
       className="space-y-4 bg-white p-6 rounded-xl shadow-md"
     >
-      {/* Name */}
       <input
         type="text"
         placeholder="Medication Name"
@@ -152,7 +157,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
       />
 
-      {/* Dosage, Unit, Type */}
       <div className="flex gap-2">
         <input
           type="number"
@@ -187,7 +191,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         </select>
       </div>
 
-      {/* Schedule */}
       <div className="flex flex-col gap-2">
         <label className="font-semibold">Frequency</label>
         <select
@@ -230,7 +233,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         )}
       </div>
 
-      {/* Times */}
       <div className="space-y-2">
         <label className="font-semibold">Times of Day</label>
         <div className="flex gap-2">
@@ -272,7 +274,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         )}
       </div>
 
-      {/* Dates */}
       <div className="flex gap-2">
         <div className="flex-1">
           <label className="block font-semibold mb-1">Start Date</label>
@@ -297,7 +298,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         </div>
       </div>
 
-      {/* Reminders */}
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -309,7 +309,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         <label htmlFor="reminders">Enable Reminders</label>
       </div>
 
-      {/* Notes */}
       <div className="mt-2">
         <label className="block font-semibold mb-1">Notes (optional)</label>
         <textarea
@@ -321,7 +320,6 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         />
       </div>
 
-      {/* Buttons */}
       <div className="flex gap-2 mt-4">
         <button
           type="submit"
