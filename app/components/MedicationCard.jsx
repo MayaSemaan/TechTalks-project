@@ -6,7 +6,7 @@ export default function MedicationCard({ med, onEdit, onDelete, onDoseClick }) {
   const [localDoses, setLocalDoses] = useState([]);
   const [remindersOn, setRemindersOn] = useState(false);
 
-  // ✅ Re-run whenever med.times, med.doses, or reminders change
+  // Re-run whenever med.times, med.doses, or reminders change
   useEffect(() => {
     setRemindersOn(!!med.reminders);
 
@@ -23,7 +23,7 @@ export default function MedicationCard({ med, onEdit, onDelete, onDoseClick }) {
     });
 
     setLocalDoses(updatedDoses);
-  }, [med.times, med.doses, med.reminders]); // 👈 dependencies expanded
+  }, [med.times, med.doses, med.reminders]);
 
   const handleMark = async (time, status) => {
     // Update local state immediately
