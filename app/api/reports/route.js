@@ -33,7 +33,9 @@ export async function GET(req) {
     let reports = [];
 
     if (user.role === "family") {
-      reports = await Report.find({ patient: { $in: user.linkedFamily } })
+      // Family sees reports of all linked patients
+      const linkedPatientIds = user.linkedFamily.map((p) => p._id);
+      reports = await Report.find({ patient: { $in: linkedPatientIds } })
         .populate("doctor", "name role email")
         .populate("patient", "name role email");
     } else if (user.role === "doctor") {
@@ -140,6 +142,29 @@ export async function POST(req) {
         );
       } catch (err) {
         console.error("Patient notification failed:", err);
+      }
+    }
+
+    // ✅ Notify linked family members
+    const User = mongoose.model("User");
+    if (report.patient) {
+      const familyMembers = await User.find({
+        linkedFamily: report.patient._id,
+      });
+      for (const family of familyMembers) {
+        if (family.email) {
+          try {
+            await sendNotification(
+              family.email,
+              "New Report Available for Patient",
+              `<p>Hello ${family.name},</p>
+               <p>A new report "<strong>${report.title}</strong>" is available for patient ${report.patient.name}.</p>
+               <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
+            );
+          } catch (err) {
+            console.error(`Notification to family ${family.name} failed:`, err);
+          }
+        }
       }
     }
 

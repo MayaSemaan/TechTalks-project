@@ -25,14 +25,17 @@ export default function Login() {
     try {
       const res = await axios.post("/api/login", form);
 
-      if (res.data.token) {
+      if (res.data.token && res.data.user?._id) {
+        // ✅ Store safely in localStorage
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("userId", res.data.user._id);
-        localStorage.setItem("role", res.data.user.role);
-      }
+        localStorage.setItem("role", res.data.user.role || "patient");
 
-      // always redirect to dashboard if login successful
-      router.push(redirect || `/dashboard/${res.data.user._id}`);
+        // ✅ Use window.location.href to force reload dashboard
+        window.location.href = redirect || `/dashboard/${res.data.user._id}`;
+      } else {
+        setError("Login failed: invalid response from server.");
+      }
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.error || "Invalid email or password.");

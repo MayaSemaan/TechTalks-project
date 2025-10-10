@@ -1,7 +1,10 @@
 {
-  "/api/reports/[reportId]/route": "app/api/reports/[reportId]/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/api/reports/view/[reportId]/download/route": "app/api/reports/view/[reportId]/download/route.js",
-  "/reports/view/[reportId]/page": "app/reports/view/[reportId]/page.js",
-  "/page": "app/page.js"
+  "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
+  "/api/login/route": "app/api/login/route.js",
+  "/login/page": "app/login/page.js",
+  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js",
+  "/reports/view/page": "app/reports/view/page.js",
+  "/reports/patient/[patientId]/page": "app/reports/patient/[patientId]/page.js",
+  "/reports/link/[reportId]/page": "app/reports/link/[reportId]/page.js"
 }

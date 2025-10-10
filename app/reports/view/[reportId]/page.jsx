@@ -10,21 +10,22 @@ export default function SingleReportPage() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userId, setUserId] = useState("");
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
 
+  // Fetch report
   useEffect(() => {
     if (!reportId) return;
 
     const fetchReport = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("token");
-        const id = localStorage.getItem("userId");
-        setUserId(id || "");
 
+        if (typeof window === "undefined") return;
+
+        const token = localStorage.getItem("token");
         if (!token) {
-          router.push("/login");
+          // User not logged in, redirect to login
+          router.replace("/login");
           return;
         }
 
@@ -38,7 +39,7 @@ export default function SingleReportPage() {
 
         if (err.response?.status === 401 || err.response?.status === 403) {
           setError("Unauthorized. Redirecting to login...");
-          setTimeout(() => router.push("/login"), 2000);
+          setTimeout(() => router.replace("/login"), 2000);
         } else {
           setError(err.response?.data?.error || "Failed to load report");
         }
@@ -50,11 +51,18 @@ export default function SingleReportPage() {
     fetchReport();
   }, [reportId, router, base]);
 
+  // Robust Back to Dashboard button
   const handleBack = () => {
+    if (typeof window === "undefined") return;
+
+    const userId = localStorage.getItem("userId");
+
     if (userId) {
-      router.push(`/dashboard/${userId}`);
+      // Navigate to the dashboard for this user
+      router.replace(`/dashboard/${userId}`);
     } else {
-      router.push("/");
+      // If no userId, send to login page
+      router.replace("/login");
     }
   };
 
