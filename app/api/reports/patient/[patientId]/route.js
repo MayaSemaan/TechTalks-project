@@ -7,9 +7,14 @@ export async function GET(req, { params }) {
     await connectToDB();
     const { patientId } = params;
 
-    const reports = await Report.find({ patientId });
+    // ✅ FIX: correct field name (should be 'patient', not 'patientId')
+    const reports = await Report.find({ patient: patientId })
+      .populate("doctor", "name role email")
+      .populate("patient", "name role email");
+
     return NextResponse.json(reports);
   } catch (err) {
+    console.error("GET /api/reports/patient/[patientId] error:", err);
     return NextResponse.json(
       { error: "Failed to fetch reports" },
       { status: 500 }

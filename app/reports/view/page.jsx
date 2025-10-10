@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Link from "next/link";
 
 export default function ViewReportsPage() {
   const [reports, setReports] = useState([]);
@@ -39,18 +40,16 @@ export default function ViewReportsPage() {
                   </h2>
                   <p className="text-gray-700">{report.description}</p>
                   <p className="text-gray-500 text-sm mt-1">
-                    Patient: {report.patientName || "Unknown"}
+                    Patient: {report.patient?.name || "Unknown"}
                   </p>
                 </div>
                 {report.fileUrl && (
-                  <a
-                    href={report.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={`/reports/view/${report._id}`}
                     className="mt-3 sm:mt-0 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
                   >
                     View File
-                  </a>
+                  </Link>
                 )}
               </div>
             ))}

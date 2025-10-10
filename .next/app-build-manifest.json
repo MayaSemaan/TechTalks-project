@@ -1,25 +1,40 @@
 {
   "pages": {
+    "/api/reports/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/reports/route.js"
+    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/medications/page": [
+    "/reports/view/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/medications/page.js"
+      "static/chunks/app/reports/view/page.js"
     ],
-    "/api/medications/route": [
+    "/reports/view/[reportId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/route.js"
+      "static/chunks/app/reports/view/[reportId]/page.js"
     ],
-    "/api/medications/[id]/route": [
+    "/api/reports/[reportId]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/[id]/route.js"
+      "static/chunks/app/api/reports/[reportId]/route.js"
+    ],
+    "/api/reports/view/[reportId]/download/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/reports/view/[reportId]/download/route.js"
+    ],
+    "/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/page.js"
     ]
   }
 }

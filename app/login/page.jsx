@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
 
 export default function Login() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || null;
+
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -24,11 +27,15 @@ export default function Login() {
 
       if (res.data.token) {
         localStorage.setItem("token", res.data.token);
+        localStorage.setItem("userId", res.data.user._id);
+        localStorage.setItem("role", res.data.user.role);
       }
 
-      router.push(`/dashboard/${res.data.user._id}`);
+      // always redirect to dashboard if login successful
+      router.push(redirect || `/dashboard/${res.data.user._id}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid email or password.");
+      console.error(err);
+      setError(err.response?.data?.error || "Invalid email or password.");
     }
   };
 

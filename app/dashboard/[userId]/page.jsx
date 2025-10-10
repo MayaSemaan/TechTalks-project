@@ -1,13 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation"; // ✅ import useParams
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 
 const Recharts = dynamic(() => import("recharts"), { ssr: false });
 
 export default function DashboardPage() {
-  const { userId } = useParams(); // ✅ get userId from URL dynamically
+  const { userId } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -31,9 +31,7 @@ export default function DashboardPage() {
         if (!token) throw new Error("No token found. Please login.");
 
         const res = await fetch(`${base}/api/dashboard/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) {
@@ -85,7 +83,6 @@ export default function DashboardPage() {
         </header>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Adherence Chart */}
           <div className="bg-white shadow-md rounded-xl p-6">
             <h2 className="font-semibold mb-2 text-blue-900">
               Adherence (last 7 days)
@@ -120,7 +117,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Medications & Recent Reports */}
           <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
             <div>
               <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
@@ -157,7 +153,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex gap-2">
                         <a
-                          href={r.fileUrl}
+                          href={`/reports/view/${r._id}`}
                           target="_blank"
                           rel="noreferrer"
                           className="underline text-blue-600"

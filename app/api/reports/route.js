@@ -1,113 +1,151 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
 import connectToDB from "../../../lib/db.js";
 import Report from "../../../models/Report.js";
 import { authenticate } from "../../../middlewares/auth.js";
-import formidable from "formidable";
-import fs from "fs";
-import path from "path";
-import mongoose from "mongoose";
+import { sendNotification } from "../../utils/sendNotification.js";
 
 export const config = { api: { bodyParser: false } };
 
-const saveFile = (file) => {
+// ✅ Save uploaded file
+const saveFile = async (file) => {
   const uploadDir = path.join(process.cwd(), "public/uploads");
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-  const fileName = `${Date.now()}_${file.originalFilename}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const fileName = `${Date.now()}_${file.name}`;
   const filePath = path.join(uploadDir, fileName);
-  fs.renameSync(file.filepath, filePath);
+
+  await fs.promises.writeFile(filePath, buffer);
   return `/uploads/${fileName}`;
 };
 
+// ✅ GET reports visible to authenticated user
 export async function GET(req) {
   try {
     const user = await authenticate(req);
     await connectToDB();
 
-    let reports;
+    let reports = [];
+
     if (user.role === "family") {
       reports = await Report.find({ patient: { $in: user.linkedFamily } })
-        .populate("doctor", "name role")
-        .populate("patient", "name role");
+        .populate("doctor", "name role email")
+        .populate("patient", "name role email");
     } else if (user.role === "doctor") {
       reports = await Report.find({ doctor: user._id })
-        .populate("doctor", "name role")
-        .populate("patient", "name role");
-    } else {
+        .populate("doctor", "name role email")
+        .populate("patient", "name role email");
+    } else if (user.role === "patient") {
       reports = await Report.find({ patient: user._id })
-        .populate("doctor", "name role")
-        .populate("patient", "name role");
+        .populate("doctor", "name role email")
+        .populate("patient", "name role email");
     }
 
     return NextResponse.json(reports);
   } catch (err) {
+    console.error("GET /api/reports error:", err);
     return NextResponse.json({ error: err.message }, { status: 401 });
   }
 }
 
+// ✅ POST report (JSON or multipart/form-data)
 export async function POST(req) {
   try {
     const user = await authenticate(req);
     await connectToDB();
 
-    if (req.headers.get("content-type")?.includes("application/json")) {
+    if (user.role !== "doctor") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    const contentType = req.headers.get("content-type") || "";
+    let report;
+
+    if (contentType.includes("application/json")) {
       const data = await req.json();
 
-      // Family must specify linked patient
-      if (user.role === "family") {
-        if (!data.patient || !user.linkedFamily.includes(data.patient)) {
-          return NextResponse.json(
-            { error: "Unauthorized or missing patient" },
-            { status: 403 }
-          );
-        }
-      } else if (user.role === "patient") {
-        data.patient = user._id;
-      } else if (user.role === "doctor") {
-        data.doctor = user._id;
+      if (!data.patient || !data.title || !data.description) {
+        return NextResponse.json(
+          { error: "Patient, title, and description are required" },
+          { status: 400 }
+        );
       }
 
-      const report = await Report.create(data);
+      data.doctor = user._id;
+      report = await Report.create(data);
       await report.populate("doctor patient");
-      return NextResponse.json(report, { status: 201 });
-    } else {
-      const form = formidable({ multiples: false });
-      const data = await new Promise((resolve, reject) => {
-        form.parse(req, (err, fields, files) =>
-          err ? reject(err) : resolve({ fields, files })
-        );
-      });
+    } else if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const title = formData.get("title");
+      const description = formData.get("description");
+      const patient = formData.get("patient");
+      const file = formData.get("file");
 
-      const { title, description, patient } = data.fields;
-      const file = data.files.file;
-
-      if (!title || !description || !patient || !file)
+      if (!title || !description || !patient || !file) {
         return NextResponse.json(
           { error: "All fields required" },
           { status: 400 }
         );
-
-      // Family validation
-      if (user.role === "family" && !user.linkedFamily.includes(patient)) {
-        return NextResponse.json(
-          { error: "Unauthorized patient" },
-          { status: 403 }
-        );
       }
 
-      const fileUrl = saveFile(file);
+      const fileUrl = await saveFile(file);
 
-      const report = await Report.create({
-        doctor: user.role === "doctor" ? user._id : null,
+      report = await Report.create({
+        doctor: user._id,
         patient: new mongoose.Types.ObjectId(patient),
         title,
         description,
         fileUrl,
       });
-
       await report.populate("doctor patient");
-      return NextResponse.json(report, { status: 201 });
+    } else {
+      return NextResponse.json(
+        { error: "Invalid content type" },
+        { status: 400 }
+      );
     }
+
+    // ✅ Corrected link for new structure
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
+    const reportLink = `${baseUrl}/reports/view/${report._id}`;
+
+    // ✅ Send notifications
+    if (report.doctor?.email) {
+      try {
+        await sendNotification(
+          report.doctor.email,
+          "New Patient Report Uploaded",
+          `<p>Hello Dr. ${report.doctor.name},</p>
+           <p>Report "<strong>${report.title}</strong>" uploaded for patient ${report.patient.name}.</p>
+           <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
+        );
+      } catch (err) {
+        console.error("Doctor notification failed:", err);
+      }
+    }
+
+    if (report.patient?.email) {
+      try {
+        await sendNotification(
+          report.patient.email,
+          "New Report Available",
+          `<p>Hello ${report.patient.name},</p>
+           <p>Report "<strong>${report.title}</strong>" uploaded by Dr. ${report.doctor.name}.</p>
+           <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
+        );
+      } catch (err) {
+        console.error("Patient notification failed:", err);
+      }
+    }
+
+    return NextResponse.json(report, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 401 });
+    console.error("POST /api/reports error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

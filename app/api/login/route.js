@@ -19,6 +19,7 @@ export async function POST(req) {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
+    // ✅ Return role explicitly
     return NextResponse.json({ user, token }, { status: 200 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -31,7 +31,7 @@ export default function UploadReportPage() {
     const formData = new FormData();
     formData.append("title", title);
     formData.append("description", description);
-    formData.append("patientId", patient);
+    formData.append("patient", patient); // changed from patientId
     formData.append("file", file);
 
     try {
