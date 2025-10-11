@@ -1,3 +1,9 @@
 {
-  "/api/reports/[reportId]/route": "app/api/reports/[reportId]/route.js"
+  "/api/reports/[reportId]/route": "app/api/reports/[reportId]/route.js",
+  "/api/reports/view/[reportId]/download/route": "app/api/reports/view/[reportId]/download/route.js",
+  "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js",
+  "/reports/link/[reportId]/page": "app/reports/link/[reportId]/page.js",
+  "/reports/view/[reportId]/page": "app/reports/view/[reportId]/page.js"
 }

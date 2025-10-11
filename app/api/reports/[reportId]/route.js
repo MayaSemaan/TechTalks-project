@@ -1,6 +1,9 @@
+// app/api/reports/[reportId]/route.js
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectToDB from "../../../../lib/db.js";
 import Report from "../../../../models/Report.js";
+import User from "../../../../models/User.js";
 import { authenticate } from "../../../../middlewares/auth.js";
 import { sendNotification } from "../../../utils/sendNotification.js";
 
@@ -73,6 +76,9 @@ export async function PUT(req, { params }) {
       );
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
+    const reportLink = `${baseUrl}/reports/view/${report._id}`;
+
     // Notify doctor
     if (report.doctor?.email) {
       try {
@@ -81,7 +87,7 @@ export async function PUT(req, { params }) {
           "Report Updated",
           `<p>Hello Dr. ${report.doctor.name},</p>
            <p>The report titled "<strong>${report.title}</strong>" for patient ${report.patient.name} has been updated.</p>
-           <p><a href="${process.env.NEXT_PUBLIC_API_BASE}/reports/view/${report._id}" target="_blank">View Report</a></p>`
+           <p><a href="${reportLink}" target="_blank">View Report</a></p>`
         );
       } catch (err) {
         console.error("Failed to send doctor update notification:", err);
@@ -96,11 +102,43 @@ export async function PUT(req, { params }) {
           "Your Report Has Been Updated",
           `<p>Hello ${report.patient.name},</p>
            <p>Your report titled "<strong>${report.title}</strong>" has been updated by Dr. ${report.doctor.name}.</p>
-           <p><a href="${process.env.NEXT_PUBLIC_API_BASE}/reports/view/${report._id}" target="_blank">View Report</a></p>`
+           <p><a href="${reportLink}" target="_blank">View Report</a></p>`
         );
       } catch (err) {
         console.error("Failed to send patient update notification:", err);
       }
+    }
+
+    // ✅ Notify linked family members (same logic as in POST route)
+    try {
+      const familyMembers = await User.find({
+        role: "family",
+        linkedPatients: report.patient._id,
+      });
+
+      for (const family of familyMembers) {
+        try {
+          if (family.email) {
+            await sendNotification(
+              family.email,
+              "Patient Report Updated",
+              `<p>Hello ${family.name},</p>
+               <p>Report "<strong>${report.title}</strong>" for ${report.patient.name} was updated by Dr. ${report.doctor.name}.</p>
+               <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
+            );
+          }
+        } catch (err) {
+          console.error(
+            `Failed to send family (${family._id}) update notification:`,
+            err
+          );
+        }
+      }
+    } catch (err) {
+      console.error(
+        "Failed to query family members for report update notification:",
+        err
+      );
     }
 
     return NextResponse.json(report);
