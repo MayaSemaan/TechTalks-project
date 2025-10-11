@@ -1,3 +1,4 @@
+// Fetch dashboard data
 export async function fetchDashboardData(userId, filters = {}) {
   try {
     const params = new URLSearchParams({ userId });
@@ -6,26 +7,61 @@ export async function fetchDashboardData(userId, filters = {}) {
     if (filters.toDate) params.append("toDate", filters.toDate);
 
     const res = await fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.error || "Failed to fetch data");
+    return data;
   } catch (error) {
-    console.error(error);
+    console.error("fetchDashboardData error:", error);
     return { success: false, error: error.message };
   }
 }
 
-export async function addMedication(medication) {
+// Add medication
+export async function addMedication(med) {
   try {
     const res = await fetch("/api/dashboard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(medication),
+      body: JSON.stringify(med),
     });
-
-    if (!res.ok) throw new Error("Failed to add medication");
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.error || "Failed to add medication");
+    return data;
   } catch (error) {
-    console.error(error);
+    console.error("addMedication error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Update medication
+export async function updateMedication(id, updates) {
+  try {
+    const res = await fetch(`/api/dashboard?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.error || "Failed to update medication");
+    return data;
+  } catch (error) {
+    console.error("updateMedication error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Delete medication
+export async function deleteMedication(id) {
+  try {
+    const res = await fetch(`/api/dashboard?id=${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.error || "Failed to delete medication");
+    return data;
+  } catch (error) {
+    console.error("deleteMedication error:", error);
     return { success: false, error: error.message };
   }
 }

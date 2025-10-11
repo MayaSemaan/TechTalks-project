@@ -1,15 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchDashboardData, addMedication } from "@/utils/api";
+import { fetchDashboardData, addMedication, deleteMedication } from "@/utils/api";
+import ComplianceChart from "@/components/ComplianceChart";
+import MedicationForm from "@/components/MedicationForm";
+import MedicationTable from "@/components/MedicationTable";
+import ReportUpload from "@/components/ReportUpload";
+import ReportList from "@/components/ReportList";
 
 export default function DashboardPage() {
   const userId = "68d1810de1e8d2230d03390a";
-  const [data, setData] = useState(null);
+
+  const [data, setData] = useState({
+    totalMeds: 0,
+    compliance: 0,
+    medications: [],
+    reports: [],
+  });
+
   const [filters, setFilters] = useState({ status: "", fromDate: "", toDate: "" });
   const [newMed, setNewMed] = useState({ name: "", dosage: "", schedule: "", status: "taken" });
   const [loading, setLoading] = useState(false);
+  const [refreshReports, setRefreshReports] = useState(0);
 
+  // Load data whenever filters change
   useEffect(() => {
     loadData();
   }, [filters]);
@@ -17,7 +31,14 @@ export default function DashboardPage() {
   async function loadData() {
     setLoading(true);
     const result = await fetchDashboardData(userId, filters);
-    if (result.success) setData(result);
+    if (result.success) {
+      setData({
+        totalMeds: result.totalMeds || 0,
+        compliance: result.compliance || 0,
+        medications: result.medications || [],
+        reports: result.reports || [],
+      });
+    }
     setLoading(false);
   }
 
@@ -30,92 +51,87 @@ export default function DashboardPage() {
     const response = await addMedication({ userId, ...newMed });
     if (response.success) {
       setNewMed({ name: "", dosage: "", schedule: "", status: "taken" });
-      await loadData();
+      await loadData(); // refresh list and chart
     } else {
-      alert("❌ Failed to add medication: " + response.error);
+      alert("Failed to add medication: " + response.error);
     }
   }
 
-  if (loading || !data)
+  async function handleDeleteMedication(id) {
+    const result = await deleteMedication(id);
+    if (result.success) {
+      await loadData();
+    } else {
+      alert("Delete failed: " + result.error);
+    }
+  }
+
+  const filteredMeds = filters.status
+    ? data.medications.filter((m) => m.status === filters.status)
+    : data.medications;
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen text-lg text-purple-700 font-semibold">
+      <div className="flex items-center justify-center h-screen text-sky-700 text-xl font-semibold">
         Loading Dashboard...
       </div>
     );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-10">
-      <div className="max-w-6xl mx-auto bg-white shadow-xl rounded-3xl p-10 border border-purple-100">
-        <h1 className="text-4xl font-bold text-purple-700 text-center mb-8">
-          💊 Medication Dashboard
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-teal-50 p-10 text-gray-800">
+      <div className="max-w-7xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-sky-100">
+        <h1 className="text-4xl font-bold text-center text-sky-700 mb-10">
+          🏥 Medication Management Dashboard
         </h1>
 
         {/* Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <Filter label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={["", "taken", "missed"]} />
-          <Filter label="From Date" type="date" value={filters.fromDate} onChange={(v) => setFilters({ ...filters, fromDate: v })} />
-          <Filter label="To Date" type="date" value={filters.toDate} onChange={(v) => setFilters({ ...filters, toDate: v })} />
+          <Filter
+            label="Status"
+            value={filters.status}
+            onChange={(v) => setFilters({ ...filters, status: v })}
+            options={["", "taken", "missed"]}
+          />
+          <Filter
+            label="From Date"
+            type="date"
+            value={filters.fromDate}
+            onChange={(v) => setFilters({ ...filters, fromDate: v })}
+          />
+          <Filter
+            label="To Date"
+            type="date"
+            value={filters.toDate}
+            onChange={(v) => setFilters({ ...filters, toDate: v })}
+          />
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
-          <StatCard title="Total Medications" value={data.totalMeds} color="from-purple-400 to-purple-600" />
-          <StatCard title="Compliance Rate" value={`${data.compliance}%`} color="from-pink-400 to-pink-600" />
+        {/* Stats - Centered */}
+        <div className="flex flex-wrap justify-center gap-6 mb-10">
+          <StatCard title="Total Medications" value={data.totalMeds} color="from-sky-400 to-sky-600" />
+          <StatCard title="Compliance Rate" value={`${data.compliance}%`} color="from-teal-400 to-teal-600" />
+          <StatCard title="Tracked Days" value="7 Days" color="from-indigo-400 to-indigo-600" />
         </div>
 
-        {/* Add Medication */}
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-6 mb-10 shadow-md">
-          <h2 className="text-2xl font-semibold text-purple-700 mb-4">➕ Add New Medication</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <input
-              placeholder="Medication Name"
-              value={newMed.name}
-              onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
-              className="border border-purple-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-400 text-black"
-            />
-            <input
-              placeholder="Dosage"
-              value={newMed.dosage}
-              onChange={(e) => setNewMed({ ...newMed, dosage: e.target.value })}
-              className="border border-purple-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-400 text-black"
-            />
-            <input
-              placeholder="Schedule"
-              value={newMed.schedule}
-              onChange={(e) => setNewMed({ ...newMed, schedule: e.target.value })}
-              className="border border-purple-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-400 text-black"
-            />
-            <select
-              value={newMed.status}
-              onChange={(e) => setNewMed({ ...newMed, status: e.target.value })}
-              className="border border-purple-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-400 text-black"
-            >
-              <option value="taken">Taken</option>
-              <option value="missed">Missed</option>
-            </select>
-          </div>
-          <button
-            onClick={handleAddMedication}
-            className="mt-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-5 py-2 rounded-xl font-semibold shadow-md hover:opacity-90 transition"
-          >
-            Save Medication
-          </button>
+        {/* Compliance Chart */}
+        <div className="mb-10">
+          <ComplianceChart medications={filteredMeds} />
         </div>
+
+        {/* Medication Form */}
+        <MedicationForm newMed={newMed} setNewMed={setNewMed} onSave={handleAddMedication} />
 
         {/* Medication List */}
-        <div>
-          <h2 className="text-2xl font-semibold text-purple-700 mb-4">📋 Medications</h2>
-          <ul className="space-y-3">
-            {data.medications.map((m) => (
-              <li key={m._id} className="flex justify-between items-center bg-white border border-purple-100 rounded-2xl shadow-sm px-4 py-3 hover:bg-purple-50 transition">
-                <span className="font-medium text-gray-800">{m.name}</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${m.status === "taken" ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}>
-                  {m.status}
-                </span>
-                <span className="text-gray-500 text-sm">{new Date(m.createdAt).toLocaleDateString()}</span>
-              </li>
-            ))}
-          </ul>
+        <MedicationTable medications={data.medications} onDeleted={handleDeleteMedication} />
+
+        {/* Reports Section */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-semibold text-sky-700 mb-4">📄 Reports Section</h2>
+
+          <ReportUpload userId={userId} onUploaded={() => setRefreshReports((prev) => prev + 1)} />
+
+          <ReportList refreshTrigger={refreshReports} />
         </div>
       </div>
     </div>
@@ -126,12 +142,12 @@ export default function DashboardPage() {
 function Filter({ label, value, onChange, options = null, type = "select" }) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-purple-700 mb-1">{label}</label>
+      <label className="block text-sm font-semibold text-sky-700 mb-2">{label}</label>
       {options ? (
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full border border-purple-300 rounded-xl px-3 py-2 text-black focus:ring-2 focus:ring-purple-400"
+          className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400"
         >
           {options.map((opt) => (
             <option key={opt} value={opt}>
@@ -144,7 +160,7 @@ function Filter({ label, value, onChange, options = null, type = "select" }) {
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full border border-purple-300 rounded-xl px-3 py-2 text-black focus:ring-2 focus:ring-purple-400"
+          className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400"
         />
       )}
     </div>
@@ -153,9 +169,11 @@ function Filter({ label, value, onChange, options = null, type = "select" }) {
 
 function StatCard({ title, value, color }) {
   return (
-    <div className={`bg-gradient-to-r ${color} text-white rounded-2xl p-6 text-center shadow-md hover:scale-105 transform transition`}>
+    <div
+      className={`bg-gradient-to-r ${color} text-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition`}
+    >
       <p className="text-3xl font-bold">{value}</p>
-      <p className="font-medium text-lg">{title}</p>
+      <p className="font-medium text-lg mt-1">{title}</p>
     </div>
   );
 }
