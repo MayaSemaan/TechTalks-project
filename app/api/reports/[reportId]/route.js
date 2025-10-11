@@ -7,24 +7,33 @@ import { sendNotification } from "../../../utils/sendNotification.js";
 // ------------------------
 // GET a single report
 // ------------------------
-export async function GET(req, context) {
-  const { params } = context; // ✅ properly destructure params
+export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
     await connectToDB();
 
     const report = await Report.findById(params.reportId)
-      .populate("doctor", "name role email")
-      .populate("patient", "name role email");
+      .populate({ path: "doctor", select: "name role email" })
+      .populate({ path: "patient", select: "name role email" });
 
     if (!report) {
       return NextResponse.json({ error: "Report not found" }, { status: 404 });
     }
 
-    const isDoctor = report.doctor._id.equals(user._id);
-    const isPatient = report.patient._id.equals(user._id);
+    // Provide placeholders if doctor or patient is missing
+    if (!report.doctor)
+      report.doctor = { name: "Unknown Doctor", _id: null, email: "" };
+    if (!report.patient)
+      report.patient = { name: "Unknown Patient", _id: null, email: "" };
+
+    // Authorization
+    const isDoctor = report.doctor._id?.toString() === user._id.toString();
+    const isPatient = report.patient._id?.toString() === user._id.toString();
     const isFamily =
-      user.role === "family" && user.linkedFamily?.includes(report.patient._id);
+      user.role === "family" &&
+      user.patient?.some(
+        (p) => p.toString() === report.patient._id?.toString()
+      );
 
     if (!isDoctor && !isPatient && !isFamily) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
@@ -38,7 +47,7 @@ export async function GET(req, context) {
 }
 
 // ------------------------
-// PUT, DELETE, POST remain unchanged
+// PUT a report
 // ------------------------
 export async function PUT(req, { params }) {
   try {
@@ -101,6 +110,9 @@ export async function PUT(req, { params }) {
   }
 }
 
+// ------------------------
+// DELETE a report
+// ------------------------
 export async function DELETE(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -129,6 +141,9 @@ export async function DELETE(req, { params }) {
   }
 }
 
+// ------------------------
+// POST a new report
+// ------------------------
 export async function POST(req) {
   try {
     const user = await authenticate(req);
@@ -152,6 +167,8 @@ export async function POST(req) {
     const report = await Report.create(data);
     await report.populate("doctor patient");
 
+    const reportLink = `${process.env.NEXT_PUBLIC_API_BASE}/reports/view/${report._id}`;
+
     // Notify doctor
     if (report.doctor?.email) {
       try {
@@ -160,7 +177,7 @@ export async function POST(req) {
           "New Report Created",
           `<p>Hello Dr. ${report.doctor.name},</p>
            <p>A new report titled "<strong>${report.title}</strong>" has been created for patient ${report.patient.name}.</p>
-           <p><a href="${process.env.NEXT_PUBLIC_API_BASE}/reports/view/${report._id}" target="_blank">View Report</a></p>`
+           <p><a href="${reportLink}" target="_blank">View Report</a></p>`
         );
       } catch (err) {
         console.error("Failed to send doctor notification:", err);
@@ -175,7 +192,7 @@ export async function POST(req) {
           "New Report Available",
           `<p>Hello ${report.patient.name},</p>
            <p>A new report titled "<strong>${report.title}</strong>" has been uploaded by Dr. ${report.doctor.name}.</p>
-           <p><a href="${process.env.NEXT_PUBLIC_API_BASE}/reports/view/${report._id}" target="_blank">View Report</a></p>`
+           <p><a href="${reportLink}" target="_blank">View Report</a></p>`
         );
       } catch (err) {
         console.error("Failed to send patient notification:", err);

@@ -12,9 +12,17 @@ const UserSchema = new mongoose.Schema(
     },
 
     // Relations
-    linkedDoctor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // For patients → linked doctors
+    linkedDoctors: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // For doctors → list of their patients
+    patients: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // For patients → linked family members
     linkedFamily: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    patient: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+    // For family → patients they are linked to
+    linkedPatients: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
