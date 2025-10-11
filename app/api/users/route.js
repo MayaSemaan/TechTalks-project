@@ -1,18 +1,18 @@
 import { connectToDatabase } from "@/lib/mongodb";
-import Medication from "@/models/Medication";
+import User from "@/models/User";
 
 export async function GET() {
   await connectToDatabase();
-  const meds = await Medication.find().populate("userId", "name email");
-  return Response.json(meds);
+  const users = await User.find();
+  return Response.json(users);
 }
 
 export async function POST(req) {
   await connectToDatabase();
   try {
     const body = await req.json();
-    const med = await Medication.create(body);
-    return Response.json(med, { status: 201 });
+    const user = await User.create(body);
+    return Response.json(user, { status: 201 });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 400 });
   }
