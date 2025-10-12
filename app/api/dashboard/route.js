@@ -13,8 +13,7 @@ export async function GET(request) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
 
-    if (!userId)
-      return NextResponse.json({ success: false, error: "User ID required" }, { status: 400 });
+    if (!userId) return NextResponse.json({ success: false, error: "User ID required" }, { status: 400 });
 
     const user = await User.findById(userId);
     if (!user) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
@@ -68,12 +67,10 @@ export async function PUT(request) {
   try {
     await connectToDB();
     const { searchParams } = new URL(request.url);
-    const idFromQuery = searchParams.get("id");
+    const id = searchParams.get("id");
     const body = await request.json();
-    const id = idFromQuery || body.id;
 
     if (!id) return NextResponse.json({ success: false, error: "Medication ID required" }, { status: 400 });
-
     if (body.id) delete body.id;
 
     const updatedMed = await Medication.findByIdAndUpdate(id, body, { new: true });
@@ -91,15 +88,7 @@ export async function DELETE(request) {
   try {
     await connectToDB();
     const { searchParams } = new URL(request.url);
-    const idFromQuery = searchParams.get("id");
-    let id;
-
-    try {
-      const body = await request.json();
-      id = idFromQuery || body.id;
-    } catch {
-      id = idFromQuery;
-    }
+    const id = searchParams.get("id");
 
     if (!id) return NextResponse.json({ success: false, error: "Medication ID required" }, { status: 400 });
 

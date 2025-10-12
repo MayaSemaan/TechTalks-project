@@ -12,36 +12,42 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
-export default function ComplianceChart({ medications = [] }) {
-  // Create labels for the last 7 days (Mon–Sun style)
+export default function ComplianceChart({ medications = [], fromDate, toDate }) {
   const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const today = new Date();
-  const last7Days = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(today.getDate() - (6 - i)); // past 6 days + today
-    return {
-      label: daysOfWeek[d.getDay()],
-      dateStr: d.toISOString().split("T")[0], // YYYY-MM-DD for comparison
-    };
-  });
 
-  const taken = Array(7).fill(0);
-  const missed = Array(7).fill(0);
+  // Use provided fromDate and toDate, otherwise default to last 7 days
+  const start = fromDate ? new Date(fromDate) : new Date(new Date().setDate(new Date().getDate() - 6));
+  const end = toDate ? new Date(toDate) : new Date();
 
-  // Group meds by date
+  // Create labels and dates array between start and end
+  const dateArray = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const copy = new Date(d); // prevent mutation
+    dateArray.push({
+      label: daysOfWeek[copy.getDay()],
+      date: copy,
+      dateStr: copy.toISOString().split("T")[0],
+    });
+  }
+
+  const taken = Array(dateArray.length).fill(0);
+  const missed = Array(dateArray.length).fill(0);
+
+  // Count all medications cumulatively for each day
   medications.forEach((med) => {
-    const date = new Date(med.date || med.createdAt || Date.now());
-    const medDateStr = date.toISOString().split("T")[0];
-    const dayIndex = last7Days.findIndex((d) => d.dateStr === medDateStr);
+    const medDate = new Date(med.createdAt || med.date || Date.now());
+    const medDateStr = medDate.toISOString().split("T")[0];
 
-    if (dayIndex !== -1) {
-      if (med.status === "taken") taken[dayIndex]++;
-      else if (med.status === "missed") missed[dayIndex]++;
-    }
+    dateArray.forEach((d, i) => {
+      if (medDateStr <= d.dateStr) {
+        if (med.status === "taken") taken[i]++;
+        else if (med.status === "missed") missed[i]++;
+      }
+    });
   });
 
   const data = {
-    labels: last7Days.map((d) => d.label),
+    labels: dateArray.map((d) => d.label),
     datasets: [
       {
         label: "Taken",
@@ -63,26 +69,19 @@ export default function ComplianceChart({ medications = [] }) {
     plugins: {
       legend: {
         position: "top",
-        labels: { color: "#111", font: { size: 13 } }, // dark text
+        labels: { color: "#111", font: { size: 13 } },
       },
     },
     scales: {
-      x: {
-        ticks: { color: "#111", font: { size: 12 } },
-        grid: { color: "rgba(200, 200, 200, 0.3)" }, // light gray grid
-      },
-      y: {
-        beginAtZero: true,
-        ticks: { color: "#111", stepSize: 1 },
-        grid: { color: "rgba(200, 200, 200, 0.3)" },
-      },
+      x: { ticks: { color: "#111", font: { size: 12 } }, grid: { color: "rgba(200, 200, 200, 0.3)" } },
+      y: { beginAtZero: true, ticks: { color: "#111", stepSize: 1 }, grid: { color: "rgba(200, 200, 200, 0.3)" } },
     },
   };
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-md border border-gray-200 mb-6">
       <h2 className="font-semibold mb-4 text-gray-800 text-lg">
-        📊 Compliance Overview (Last 7 Days)
+        📊 Compliance Overview ({dateArray.length} Days)
       </h2>
       <Bar data={data} options={options} />
     </div>

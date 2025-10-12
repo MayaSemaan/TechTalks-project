@@ -9,7 +9,7 @@ import ReportUpload from "@/components/ReportUpload";
 import ReportList from "@/components/ReportList";
 
 export default function DashboardPage() {
-  const userId = "68d1810de1e8d2230d03390a";
+  const userId = "68d1810de1e8d2230d03390a"; // Make sure this is correct
 
   const [data, setData] = useState({
     totalMeds: 0,
@@ -19,7 +19,6 @@ export default function DashboardPage() {
   });
 
   const [filters, setFilters] = useState({ status: "", fromDate: "", toDate: "" });
-  const [newMed, setNewMed] = useState({ name: "", dosage: "", schedule: "", status: "taken" });
   const [loading, setLoading] = useState(false);
   const [refreshReports, setRefreshReports] = useState(0);
 
@@ -42,7 +41,7 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  async function handleAddMedication() {
+  async function handleAddMedication(newMed) {
     if (!newMed.name || !newMed.dosage || !newMed.schedule) {
       alert("Please fill all fields");
       return;
@@ -50,8 +49,7 @@ export default function DashboardPage() {
 
     const response = await addMedication({ userId, ...newMed });
     if (response.success) {
-      setNewMed({ name: "", dosage: "", schedule: "", status: "taken" });
-      await loadData(); // refresh list and chart
+      await loadData(); // refresh table and chart
     } else {
       alert("Failed to add medication: " + response.error);
     }
@@ -65,10 +63,6 @@ export default function DashboardPage() {
       alert("Delete failed: " + result.error);
     }
   }
-
-  const filteredMeds = filters.status
-    ? data.medications.filter((m) => m.status === filters.status)
-    : data.medications;
 
   if (loading) {
     return (
@@ -107,7 +101,7 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Stats - Centered */}
+        {/* Stats */}
         <div className="flex flex-wrap justify-center gap-6 mb-10">
           <StatCard title="Total Medications" value={data.totalMeds} color="from-sky-400 to-sky-600" />
           <StatCard title="Compliance Rate" value={`${data.compliance}%`} color="from-teal-400 to-teal-600" />
@@ -116,21 +110,19 @@ export default function DashboardPage() {
 
         {/* Compliance Chart */}
         <div className="mb-10">
-          <ComplianceChart medications={filteredMeds} />
+          <ComplianceChart medications={data.medications} />
         </div>
 
         {/* Medication Form */}
-        <MedicationForm newMed={newMed} setNewMed={setNewMed} onSave={handleAddMedication} />
+        <MedicationForm userId={userId} onSave={handleAddMedication} />
 
-        {/* Medication List */}
-        <MedicationTable medications={data.medications} onDeleted={handleDeleteMedication} />
+        {/* Medication Table */}
+        <MedicationTable medications={data.medications} userId={userId} onUpdated={loadData} onDeleted={handleDeleteMedication} />
 
         {/* Reports Section */}
         <div className="mt-12">
           <h2 className="text-2xl font-semibold text-sky-700 mb-4">📄 Reports Section</h2>
-
-          <ReportUpload userId={userId} onUploaded={() => setRefreshReports((prev) => prev + 1)} />
-
+          <ReportUpload userId={userId} onUploaded={() => setRefreshReports(prev => prev + 1)} />
           <ReportList refreshTrigger={refreshReports} />
         </div>
       </div>
@@ -144,24 +136,13 @@ function Filter({ label, value, onChange, options = null, type = "select" }) {
     <div>
       <label className="block text-sm font-semibold text-sky-700 mb-2">{label}</label>
       {options ? (
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400"
-        >
-          {options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt === "" ? "All" : opt.charAt(0).toUpperCase() + opt.slice(1)}
-            </option>
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400">
+          {options.map(opt => (
+            <option key={opt} value={opt}>{opt === "" ? "All" : opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
           ))}
         </select>
       ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400"
-        />
+        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full border border-sky-300 px-3 py-2 rounded-xl focus:ring-2 focus:ring-sky-400" />
       )}
     </div>
   );
@@ -169,9 +150,7 @@ function Filter({ label, value, onChange, options = null, type = "select" }) {
 
 function StatCard({ title, value, color }) {
   return (
-    <div
-      className={`bg-gradient-to-r ${color} text-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition`}
-    >
+    <div className={`bg-gradient-to-r ${color} text-white rounded-2xl p-6 text-center shadow-lg hover:shadow-xl transition`}>
       <p className="text-3xl font-bold">{value}</p>
       <p className="font-medium text-lg mt-1">{title}</p>
     </div>
