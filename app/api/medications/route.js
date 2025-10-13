@@ -3,7 +3,7 @@ import connectToDB from "../../../lib/db.js";
 import Medication from "../../../models/Medication.js";
 import User from "../../../models/User.js";
 import { authenticate } from "../../../middlewares/auth.js";
-import mongoose from "mongoose";
+import crypto from "crypto";
 
 // Safe date parser
 const parseDateSafe = (val) => {
@@ -11,6 +11,20 @@ const parseDateSafe = (val) => {
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 };
+
+// Utility: validate medication fields before saving
+function validateMedicationData(data) {
+  if (!data.name || typeof data.name !== "string" || data.name.trim() === "")
+    throw new Error("Invalid medication name");
+  if (isNaN(data.dosage) || data.dosage <= 0)
+    throw new Error("Invalid dosage value");
+  if (!Array.isArray(data.times) || data.times.length === 0)
+    throw new Error("At least one valid time is required");
+  data.times.forEach((t) => {
+    if (!/^([0-1]\d|2[0-3]):([0-5]\d)$/.test(t))
+      throw new Error("Invalid time format in times array");
+  });
+}
 
 // GET all medications
 export async function GET(req) {
@@ -44,7 +58,12 @@ export async function GET(req) {
               : dose.taken === false
               ? "missed"
               : "pending";
-          return { time: t, taken: status, date: dose.date || null };
+          return {
+            doseId: dose.doseId,
+            time: t,
+            taken: status,
+            date: dose.date || null,
+          };
         }),
       }))
     );
@@ -60,6 +79,8 @@ export async function POST(req) {
     await connectToDB();
 
     const data = await req.json();
+
+    validateMedicationData(data);
 
     if (user.role === "family") {
       const linkedIds = user.linkedFamily.map((id) => id.toString());
@@ -79,31 +100,21 @@ export async function POST(req) {
         ? data.customInterval || { number: 1, unit: "day" }
         : undefined;
 
-    // ✅ Preserve existing doses if provided, else create new
-    let doses = [];
-    if (data.doses && data.doses.length) {
-      doses = data.doses.map((d) => ({
-        time: d.time,
-        taken: d.taken ?? null,
-        date:
-          parseDateSafe(d.date) || parseDateSafe(data.startDate) || new Date(),
-      }));
-    } else {
-      doses = (Array.isArray(data.times) ? data.times : []).map((time) => ({
-        time,
-        taken: null,
-        date: parseDateSafe(data.startDate) || new Date(),
-      }));
-    }
+    const doses = (Array.isArray(data.times) ? data.times : []).map((time) => ({
+      doseId: crypto.randomUUID(),
+      time,
+      taken: null,
+      date: parseDateSafe(data.startDate) || new Date(),
+    }));
 
     const medData = {
-      name: data.name || "Unnamed Medication",
-      dosage: Number(data.dosage) || 0,
+      name: data.name.trim(),
+      dosage: Number(data.dosage),
       unit: data.unit || "mg",
       type: data.type || "tablet",
       schedule: data.schedule,
       customInterval,
-      times: Array.isArray(data.times) ? data.times : [],
+      times: data.times,
       startDate: parseDateSafe(data.startDate),
       endDate: parseDateSafe(data.endDate),
       reminders: !!data.reminders,

@@ -3,6 +3,7 @@ import connectToDB from "../../../../lib/db.js";
 import Medication from "../../../../models/Medication.js";
 import { authenticate } from "../../../../middlewares/auth.js";
 import mongoose from "mongoose";
+import { randomUUID } from "crypto";
 
 // PUT /api/medications/:id
 export async function PUT(req, { params }) {
@@ -21,30 +22,54 @@ export async function PUT(req, { params }) {
         { status: 404 }
       );
 
-    // Authorization
-    if (user.role === "family") {
-      const linkedIds = user.linkedFamily.map((i) => i.toString());
-      if (!linkedIds.includes(med.userId.toString()))
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    } else if (med.userId.toString() !== user._id.toString()) {
+    // ✅ Authorization (Owner or Doctor)
+    const isOwner = med.userId.toString() === user._id.toString();
+    const isDoctor = user.role === "doctor";
+    if (!isOwner && !isDoctor) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const data = await req.json();
 
-    // Merge new times with existing doses
+    // ✅ Ensure valid startDate
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let startDate = med.startDate ? new Date(med.startDate) : today;
+    startDate.setHours(0, 0, 0, 0);
+    if (startDate < today) {
+      med.startDate = today;
+      startDate = today;
+    }
+
+    // ✅ Update doses if before startDate
+    med.doses = (med.doses || []).map((d) => {
+      const doseDate = new Date(d.date);
+      doseDate.setHours(0, 0, 0, 0);
+      if (doseDate < startDate) {
+        return { ...d.toObject(), date: startDate, taken: null };
+      }
+      return d;
+    });
+
+    // ✅ Sync times and generate missing doses
     if (data.times) {
+      const uniqueTimes = [...new Set(data.times)];
       const existingDoses = med.doses || [];
-      med.times = data.times;
-      med.doses = data.times.map((t) => {
+      med.times = uniqueTimes;
+
+      med.doses = uniqueTimes.map((t) => {
         const found = existingDoses.find((d) => d.time === t);
-        return (
-          found || { time: t, taken: null, date: med.startDate || new Date() }
-        );
+        if (found) return found;
+        return {
+          doseId: randomUUID(),
+          time: t,
+          taken: null,
+          date: startDate,
+        };
       });
     }
 
-    // Update other fields
+    // ✅ Update fields
     const fields = [
       "name",
       "dosage",
@@ -52,7 +77,6 @@ export async function PUT(req, { params }) {
       "type",
       "schedule",
       "customInterval",
-      "startDate",
       "endDate",
       "reminders",
       "notes",
@@ -61,7 +85,7 @@ export async function PUT(req, { params }) {
       if (data[f] !== undefined) med[f] = data[f];
     });
 
-    // Update single dose status if provided
+    // ✅ Update dose status if provided
     if (data.time && data.status) {
       const dose = med.doses.find((d) => d.time === data.time);
       if (dose) {
@@ -74,20 +98,23 @@ export async function PUT(req, { params }) {
       }
     }
 
+    // ✅ Recalculate medication status
+    const allTaken = med.doses.every((d) => d.taken === true);
+    const allMissed = med.doses.every((d) => d.taken === false);
+    med.status = allTaken ? "taken" : allMissed ? "missed" : "pending";
+
     await med.save();
 
     return NextResponse.json({
       ...med.toObject(),
-      doses: med.times.map((t) => {
-        const dose = med.doses.find((d) => d.time === t) || {};
-        const status =
-          dose.taken === true
-            ? "taken"
-            : dose.taken === false
-            ? "missed"
-            : "pending";
-        return { time: t, taken: status, date: dose.date || null };
-      }),
+      doses: med.doses.map((d) => ({
+        doseId: d.doseId,
+        time: d.time,
+        taken:
+          d.taken === true ? "taken" : d.taken === false ? "missed" : "pending",
+        date: d.date || null,
+      })),
+      medicationStatus: med.status,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 400 });
@@ -111,17 +138,13 @@ export async function DELETE(req, { params }) {
         { status: 404 }
       );
 
-    // Authorization
-    if (user.role === "family") {
-      const linkedIds = user.linkedFamily.map((i) => i.toString());
-      if (!linkedIds.includes(med.userId.toString()))
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    } else if (med.userId.toString() !== user._id.toString()) {
+    // ✅ Only Owner can delete
+    if (med.userId.toString() !== user._id.toString()) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     await med.deleteOne();
-    return NextResponse.json({ success: true }, { status: 200 });
+    return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

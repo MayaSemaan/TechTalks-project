@@ -1,51 +1,100 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import dbConnect from "../../../../../lib/db.js";
+import connectToDB from "../../../../../lib/db.js";
 import Medication from "../../../../../models/Medication.js";
 import { authenticate } from "../../../../../middlewares/auth.js";
 
-// ✅ PATCH /api/medications/[id]/status
-export async function PATCH(req, context) {
+// PATCH /api/medications/[id]/status
+export async function PATCH(req, { params }) {
   try {
-    const { id } = await context.params;
-    if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
-
-    let medId;
-    try {
-      medId = new mongoose.Types.ObjectId(id);
-    } catch {
-      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
-    }
-
     const user = await authenticate(req);
-    await dbConnect();
+    await connectToDB();
 
-    const { date, taken } = await req.json();
-    if (!date)
-      return NextResponse.json({ error: "Date required" }, { status: 400 });
+    const { id } = params;
+    if (!mongoose.Types.ObjectId.isValid(id))
+      return NextResponse.json(
+        { error: "Invalid medication ID" },
+        { status: 400 }
+      );
 
-    const med = await Medication.findOneAndUpdate(
-      { _id: medId, userId: user._id },
-      {
-        $set: {
-          "doses.$[elem].taken": taken,
-          status: taken ? "taken" : "missed",
-        },
-      },
-      {
-        arrayFilters: [{ "elem.date": new Date(date) }],
-        new: true,
-      }
-    );
+    const { doseId, status } = await req.json();
+    if (!doseId || !status)
+      return NextResponse.json(
+        { error: "doseId and status are required" },
+        { status: 400 }
+      );
 
+    const normalizedStatus = status.toLowerCase();
+    if (!["taken", "missed", "pending"].includes(normalizedStatus))
+      return NextResponse.json(
+        { error: "Invalid status value" },
+        { status: 400 }
+      );
+
+    const med = await Medication.findById(id);
     if (!med)
       return NextResponse.json(
-        { error: "Not found or unauthorized" },
+        { error: "Medication not found" },
         { status: 404 }
       );
 
-    return NextResponse.json(med);
+    // ✅ Authorization (Owner or linked Family)
+    const isOwner = med.userId.toString() === user._id.toString();
+    let isFamily = false;
+
+    if (user.role === "family") {
+      // Fetch the medication owner (patient)
+      const patient = await mongoose.model("User").findById(med.userId);
+      if (
+        patient?.linkedFamily?.some(
+          (fid) => fid.toString() === user._id.toString()
+        )
+      ) {
+        isFamily = true;
+      }
+    }
+
+    if (!isOwner && !isFamily) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // ✅ Ensure startDate and dose dates
+    if (!med.startDate) med.startDate = new Date();
+    med.doses.forEach((d) => {
+      if (!d.date) d.date = med.startDate;
+    });
+
+    // ✅ Update the specific dose
+    const dose = med.doses.find((d) => d.doseId === doseId);
+    if (!dose)
+      return NextResponse.json({ error: "Dose not found" }, { status: 404 });
+
+    dose.taken =
+      normalizedStatus === "taken"
+        ? true
+        : normalizedStatus === "missed"
+        ? false
+        : null;
+
+    // ✅ Recalculate overall status
+    const allTaken = med.doses.every((d) => d.taken === true);
+    const allMissed = med.doses.every((d) => d.taken === false);
+    med.status = allTaken ? "taken" : allMissed ? "missed" : "pending";
+
+    await med.save();
+
+    return NextResponse.json({
+      success: true,
+      updatedDose: {
+        doseId: dose.doseId,
+        time: dose.time,
+        taken: normalizedStatus,
+        date: dose.date,
+      },
+      medicationStatus: med.status,
+    });
   } catch (err) {
+    console.error("PATCH /status error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

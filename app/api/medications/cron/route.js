@@ -5,6 +5,7 @@ import runCron from "../../../../cron-runner.js";
 export async function GET() {
   try {
     const result = await runCron();
+    console.log("Manual cron run result:", result);
     return NextResponse.json(result);
   } catch (err) {
     console.error("Error running cron via API:", err);

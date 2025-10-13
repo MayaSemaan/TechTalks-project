@@ -1,13 +1,11 @@
-// cron/index.js
 import cron from "node-cron";
 import runCron from "../cron-runner.js";
 
-// Helper to format current time for logs
 function logTime() {
   return new Date().toLocaleString();
 }
 
-// Schedule cron job to run every minute
+// Run every minute
 cron.schedule("* * * * *", async () => {
   console.log(`[${logTime()}] Running scheduled cron job...`);
   try {
