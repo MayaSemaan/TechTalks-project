@@ -109,7 +109,6 @@ const MedicationSchema = new mongoose.Schema(
     notes: { type: String, default: "" },
     doses: { type: [DoseSchema], default: [] },
     notifiedTimes: { type: [String], default: [] },
-    lastNotifiedReset: { type: Date, default: null }, // ✅ added for daily reset
   },
   { timestamps: true }
 );

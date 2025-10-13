@@ -1,1 +1,3 @@
-{}
+{
+  "/api/medications/cron/route": "app/api/medications/cron/route.js"
+}
