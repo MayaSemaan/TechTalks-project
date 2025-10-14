@@ -14,7 +14,7 @@ const ReportSchema = new mongoose.Schema(
     },
     title: { type: String, required: true },
     description: { type: String, required: true },
-    fileUrl: { type: String }, // optional for uploads
+    fileUrl: { type: String }, // optional
   },
   { timestamps: true }
 );

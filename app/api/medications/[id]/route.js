@@ -5,9 +5,13 @@ import { authenticate } from "../../../../middlewares/auth.js";
 import mongoose from "mongoose";
 import { randomUUID } from "crypto";
 
+// -------------------
 // PUT /api/medications/:id
+// -------------------
 export async function PUT(req, { params }) {
   try {
+    console.log("✅ HIT PUT /api/medications/:id");
+
     const user = await authenticate(req);
     await connectToDB();
 
@@ -22,54 +26,71 @@ export async function PUT(req, { params }) {
         { status: 404 }
       );
 
-    // ✅ Authorization (Owner or Doctor)
+    // Authorization (Owner or Doctor)
     const isOwner = med.userId.toString() === user._id.toString();
     const isDoctor = user.role === "doctor";
-    if (!isOwner && !isDoctor) {
+    if (!isOwner && !isDoctor)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
 
     const data = await req.json();
 
-    // ✅ Ensure valid startDate
+    // -----------------------
+    // Safe Date Updates
+    // -----------------------
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    let startDate = med.startDate ? new Date(med.startDate) : today;
-    startDate.setHours(0, 0, 0, 0);
-    if (startDate < today) {
-      med.startDate = today;
-      startDate = today;
+
+    if (data.startDate) {
+      const newStart = new Date(data.startDate);
+      if (!isNaN(newStart)) med.startDate = newStart;
     }
 
-    // ✅ Update doses if before startDate
-    med.doses = (med.doses || []).map((d) => {
-      const doseDate = new Date(d.date);
-      doseDate.setHours(0, 0, 0, 0);
-      if (doseDate < startDate) {
-        return { ...d.toObject(), date: startDate, taken: null };
-      }
-      return d;
-    });
+    if (data.endDate) {
+      const newEnd = new Date(data.endDate);
+      if (!isNaN(newEnd)) med.endDate = newEnd;
+    }
 
-    // ✅ Sync times and generate missing doses
-    if (data.times) {
+    if (med.startDate && med.endDate && med.endDate < med.startDate) {
+      console.warn("⚠️ endDate < startDate detected — auto-fixing");
+      med.endDate = med.startDate;
+    }
+
+    if (!med.startDate) med.startDate = today;
+
+    // -----------------------
+    // Sync times and generate missing doses (preserve past taken/missed)
+    // -----------------------
+    if (Array.isArray(data.times)) {
       const uniqueTimes = [...new Set(data.times)];
       const existingDoses = med.doses || [];
       med.times = uniqueTimes;
 
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       med.doses = uniqueTimes.map((t) => {
         const found = existingDoses.find((d) => d.time === t);
-        if (found) return found;
+
+        if (found) {
+          return {
+            ...(found.toObject?.() || found),
+            date: found.date || med.startDate,
+            taken: found.taken !== undefined ? found.taken : null,
+          };
+        }
+
         return {
           doseId: randomUUID(),
           time: t,
           taken: null,
-          date: startDate,
+          date: med.startDate,
         };
       });
     }
 
-    // ✅ Update fields
+    // -----------------------
+    // Update other editable fields
+    // -----------------------
     const fields = [
       "name",
       "dosage",
@@ -77,17 +98,19 @@ export async function PUT(req, { params }) {
       "type",
       "schedule",
       "customInterval",
-      "endDate",
       "reminders",
       "notes",
     ];
+
     fields.forEach((f) => {
       if (data[f] !== undefined) med[f] = data[f];
     });
 
-    // ✅ Update dose status if provided
+    // -----------------------
+    // Update dose status if provided
+    // -----------------------
     if (data.time && data.status) {
-      const dose = med.doses.find((d) => d.time === data.time);
+      const dose = med.doses?.find((d) => d.time === data.time);
       if (dose) {
         dose.taken =
           data.status === "taken"
@@ -98,12 +121,16 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // ✅ Recalculate medication status
-    const allTaken = med.doses.every((d) => d.taken === true);
-    const allMissed = med.doses.every((d) => d.taken === false);
+    // -----------------------
+    // Recalculate medication status
+    // -----------------------
+    const allTaken =
+      med.doses?.length > 0 && med.doses.every((d) => d.taken === true);
+    const allMissed =
+      med.doses?.length > 0 && med.doses.every((d) => d.taken === false);
     med.status = allTaken ? "taken" : allMissed ? "missed" : "pending";
 
-    await med.save();
+    await med.save({ validateBeforeSave: false });
 
     return NextResponse.json({
       ...med.toObject(),
@@ -117,13 +144,18 @@ export async function PUT(req, { params }) {
       medicationStatus: med.status,
     });
   } catch (err) {
+    console.error("❌ PUT medication error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }
 
+// -------------------
 // DELETE /api/medications/:id
+// -------------------
 export async function DELETE(req, { params }) {
   try {
+    console.log("✅ HIT DELETE /api/medications/:id");
+
     const user = await authenticate(req);
     await connectToDB();
 
@@ -138,14 +170,13 @@ export async function DELETE(req, { params }) {
         { status: 404 }
       );
 
-    // ✅ Only Owner can delete
-    if (med.userId.toString() !== user._id.toString()) {
+    if (med.userId.toString() !== user._id.toString())
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
 
     await med.deleteOne();
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error("❌ DELETE medication error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

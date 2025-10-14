@@ -1,14 +1,10 @@
 import mongoose from "mongoose";
-import { v4 as uuidv4 } from "uuid"; // added for doseId
+import { v4 as uuidv4 } from "uuid";
 
 // ----- Dose Subschema -----
 const DoseSchema = new mongoose.Schema(
   {
-    doseId: {
-      type: String,
-      default: () => uuidv4(), // auto-generate unique ID
-      required: true,
-    },
+    doseId: { type: String, default: () => uuidv4(), required: true },
     date: {
       type: Date,
       required: true,
@@ -31,11 +27,7 @@ const DoseSchema = new mongoose.Schema(
 const CustomIntervalSchema = new mongoose.Schema(
   {
     number: { type: Number, default: 1, min: 1 },
-    unit: {
-      type: String,
-      enum: ["day", "week", "month"],
-      default: "day",
-    },
+    unit: { type: String, enum: ["day", "week", "month"], default: "day" },
   },
   { _id: false }
 );
@@ -95,16 +87,26 @@ const MedicationSchema = new mongoose.Schema(
       default: "pending",
     },
     startDate: { type: Date, default: null },
+
+    // ✅ Fixed validator (runs only if date fields are modified)
     endDate: {
       type: Date,
       default: null,
       validate: {
         validator: function (v) {
-          return !v || !this.startDate || v >= this.startDate;
+          if (!this.isModified("endDate") && !this.isModified("startDate"))
+            return true;
+          return (
+            !v ||
+            !this.startDate ||
+            new Date(v).setHours(0, 0, 0, 0) >=
+              new Date(this.startDate).setHours(0, 0, 0, 0)
+          );
         },
         message: "endDate must be after startDate",
       },
     },
+
     reminders: { type: Boolean, default: false },
     notes: { type: String, default: "" },
     doses: { type: [DoseSchema], default: [] },
@@ -113,7 +115,7 @@ const MedicationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-clean doses array (no duplicates or invalids)
+// ----- Auto-clean doses -----
 MedicationSchema.pre("save", function (next) {
   if (Array.isArray(this.doses)) {
     this.doses = this.doses.filter(
@@ -123,7 +125,6 @@ MedicationSchema.pre("save", function (next) {
         d.date instanceof Date
     );
 
-    // Remove duplicates by time
     const uniqueTimes = new Set();
     this.doses = this.doses.filter((d) => {
       if (uniqueTimes.has(d.time)) return false;

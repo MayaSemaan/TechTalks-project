@@ -1,4 +1,5 @@
 import "dotenv/config";
+import ReminderLog from "./models/ReminderLog.js";
 import mongoose from "mongoose";
 import connectToDB from "./lib/db.js";
 import { toZonedTime, format } from "date-fns-tz";
@@ -101,12 +102,29 @@ async function runCron(timeZone = "Asia/Beirut") {
             `🔔 MATCH! Sending notification for ${med.name} (scheduled ${sched}, now ${nowNorm})`
           );
 
+          // Send email notification
           if (user.email) {
             try {
               await sendNotification(user.email, `Time to take ${med.name}`);
             } catch (err) {
               console.error(`❌ Failed to send notification:`, err.message);
             }
+          }
+
+          // ✅ Log reminder with "pending" status
+          try {
+            await ReminderLog.create({
+              userId: user._id,
+              medicationId: med._id,
+              timestamp: now,
+              status: "pending", // <- changed here
+            });
+            console.log(`📝 Logged reminder for ${med.name} at ${sched}`);
+          } catch (logErr) {
+            console.error(
+              `❌ Failed to log reminder for ${med.name}:`,
+              logErr.message
+            );
           }
 
           // Push dose with both date and time
