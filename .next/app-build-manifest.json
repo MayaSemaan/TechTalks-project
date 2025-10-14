@@ -1,55 +1,50 @@
 {
   "pages": {
-    "/api/dashboard/doctor/[doctorId]/patients/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/dashboard/doctor/[doctorId]/patients/route.js"
-    ],
-    "/api/medications/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/route.js"
-    ],
-    "/api/medications/[id]/status/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/[id]/status/route.js"
-    ],
-    "/api/dashboard/[userId]/compliance/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/dashboard/[userId]/compliance/route.js"
-    ],
     "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/reports/view/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/reports/view/page.js"
-    ],
-    "/medications/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/medications/page.js"
-    ],
     "/dashboard/[userId]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/[userId]/page.js"
     ],
-    "/api/reports/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/reports/route.js"
-    ],
     "/api/dashboard/[userId]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/dashboard/[userId]/route.js"
+    ],
+    "/api/medications/[id]/status/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/medications/[id]/status/route.js"
+    ],
+    "/api/medications/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/medications/route.js"
+    ],
+    "/api/dashboard/[userId]/charts/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/dashboard/[userId]/charts/route.js"
+    ],
+    "/api/dashboard/[userId]/compliance/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/dashboard/[userId]/compliance/route.js"
+    ],
+    "/api/dashboard/[userId]/reports/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/dashboard/[userId]/reports/route.js"
+    ],
+    "/api/dashboard/doctor/[doctorId]/patients/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/dashboard/doctor/[doctorId]/patients/route.js"
     ],
     "/reports/view/[reportId]/page": [
       "static/chunks/webpack.js",
@@ -60,11 +55,6 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/reports/[reportId]/route.js"
-    ],
-    "/api/medications/[id]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/medications/[id]/route.js"
     ]
   }
 }

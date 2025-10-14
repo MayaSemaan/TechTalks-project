@@ -4,7 +4,34 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 
-const Recharts = dynamic(() => import("recharts"), { ssr: false });
+// Import individual Recharts components dynamically
+const ResponsiveContainer = dynamic(
+  () => import("recharts").then((mod) => mod.ResponsiveContainer),
+  { ssr: false }
+);
+const LineChart = dynamic(
+  () => import("recharts").then((mod) => mod.LineChart),
+  { ssr: false }
+);
+const Line = dynamic(() => import("recharts").then((mod) => mod.Line), {
+  ssr: false,
+});
+const XAxis = dynamic(() => import("recharts").then((mod) => mod.XAxis), {
+  ssr: false,
+});
+const YAxis = dynamic(() => import("recharts").then((mod) => mod.YAxis), {
+  ssr: false,
+});
+const CartesianGrid = dynamic(
+  () => import("recharts").then((mod) => mod.CartesianGrid),
+  { ssr: false }
+);
+const Tooltip = dynamic(() => import("recharts").then((mod) => mod.Tooltip), {
+  ssr: false,
+});
+const Legend = dynamic(() => import("recharts").then((mod) => mod.Legend), {
+  ssr: false,
+});
 
 export default function DashboardPage() {
   const { userId } = useParams();
@@ -59,17 +86,6 @@ export default function DashboardPage() {
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
-  const {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    Tooltip,
-    CartesianGrid,
-    Legend,
-    ResponsiveContainer,
-  } = Recharts || {};
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -87,7 +103,7 @@ export default function DashboardPage() {
             <h2 className="font-semibold mb-2 text-blue-900">
               Adherence (last 7 days)
             </h2>
-            {LineChart && ResponsiveContainer && data.chartData.length ? (
+            {data.chartData.length ? (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart
                   data={data.chartData}
@@ -117,6 +133,7 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {/* Medications & Reports Section */}
           <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
             <div>
               <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
