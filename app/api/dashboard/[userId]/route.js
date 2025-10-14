@@ -2,13 +2,23 @@ import { NextResponse } from "next/server";
 import connectToDB from "../../../../lib/db.js";
 import Medication from "../../../../models/Medication.js";
 import Report from "../../../../models/Report.js";
-import ReminderLog from "../../../../models/ReminderLog.js";
 import { calculateCompliance } from "../../../../lib/complianceHelper.js";
 
 export async function GET(req, { params }) {
   try {
     await connectToDB();
     const { userId } = params;
+
+    const { searchParams } = new URL(req.url);
+
+    // Medication filters
+    const statusFilter = searchParams.get("status"); // "taken" | "missed" | ""
+    const medFromDate = searchParams.get("fromDate");
+    const medToDate = searchParams.get("toDate");
+
+    // Report filters (independent)
+    const reportFromDate = searchParams.get("reportFromDate");
+    const reportToDate = searchParams.get("reportToDate");
 
     // --- Medications ---
     const medications = await Medication.find({ userId });
@@ -22,10 +32,25 @@ export async function GET(req, { params }) {
 
       med.doses.forEach((dose) => {
         const doseDate = new Date(dose.date);
+
         if (
           (!medStart || doseDate >= medStart) &&
           (!medEnd || doseDate <= medEnd)
         ) {
+          // Status filter
+          if (
+            (statusFilter === "taken" && dose.taken !== true) ||
+            (statusFilter === "missed" && dose.taken !== false)
+          )
+            return;
+
+          // Date range filter
+          if (
+            (medFromDate && doseDate < new Date(medFromDate + "T00:00:00Z")) ||
+            (medToDate && doseDate > new Date(medToDate + "T23:59:59Z"))
+          )
+            return;
+
           if (dose.taken === true) dosesTaken++;
           else if (dose.taken === false) dosesMissed++;
           else dosesPending++;
@@ -55,12 +80,27 @@ export async function GET(req, { params }) {
     });
 
     // --- Reports ---
-    const reports = await Report.find({ patient: userId });
+    const reportQuery = { patient: userId };
+
+    if (reportFromDate && reportToDate) {
+      reportQuery.createdAt = {
+        $gte: new Date(reportFromDate + "T00:00:00Z"),
+        $lte: new Date(reportToDate + "T23:59:59Z"),
+      };
+    }
+
+    const reportsRaw = await Report.find(reportQuery).sort({ createdAt: -1 });
+    const reports = reportsRaw.map((r) => ({
+      _id: r._id,
+      title: r.title,
+      fileUrl: r.fileUrl,
+      uploadedAt: r.createdAt ? r.createdAt.toISOString() : null, // ✅ FIXED
+    }));
 
     // --- Chart Data (last 7 days) ---
     const chartData = [];
     const end = new Date();
-    const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000); // last 7 days
+    const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
     const currentDate = new Date(start);
 
     while (currentDate <= end) {
@@ -80,7 +120,7 @@ export async function GET(req, { params }) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // --- Metrics (adherence %) ---
+    // --- Metrics ---
     const totalTaken = chartData.reduce((sum, d) => sum + d.taken, 0);
     const totalDoses = chartData.reduce(
       (sum, d) => sum + d.taken + d.missed,

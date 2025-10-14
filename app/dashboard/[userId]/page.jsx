@@ -3,33 +3,33 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { fetchDashboardData } from "../../utils/api.js";
 
-// Import individual Recharts components dynamically
+// Dynamic Recharts imports
 const ResponsiveContainer = dynamic(
-  () => import("recharts").then((mod) => mod.ResponsiveContainer),
+  () => import("recharts").then((m) => m.ResponsiveContainer),
   { ssr: false }
 );
-const LineChart = dynamic(
-  () => import("recharts").then((mod) => mod.LineChart),
-  { ssr: false }
-);
-const Line = dynamic(() => import("recharts").then((mod) => mod.Line), {
+const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), {
   ssr: false,
 });
-const XAxis = dynamic(() => import("recharts").then((mod) => mod.XAxis), {
+const Line = dynamic(() => import("recharts").then((m) => m.Line), {
   ssr: false,
 });
-const YAxis = dynamic(() => import("recharts").then((mod) => mod.YAxis), {
+const XAxis = dynamic(() => import("recharts").then((m) => m.XAxis), {
+  ssr: false,
+});
+const YAxis = dynamic(() => import("recharts").then((m) => m.YAxis), {
   ssr: false,
 });
 const CartesianGrid = dynamic(
-  () => import("recharts").then((mod) => mod.CartesianGrid),
+  () => import("recharts").then((m) => m.CartesianGrid),
   { ssr: false }
 );
-const Tooltip = dynamic(() => import("recharts").then((mod) => mod.Tooltip), {
+const Tooltip = dynamic(() => import("recharts").then((m) => m.Tooltip), {
   ssr: false,
 });
-const Legend = dynamic(() => import("recharts").then((mod) => mod.Legend), {
+const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
   ssr: false,
 });
 
@@ -44,34 +44,39 @@ export default function DashboardPage() {
     metrics: {},
   });
 
-  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  // Separate filters
+  const [medFilters, setMedFilters] = useState({
+    status: "",
+    fromDate: "",
+    toDate: "",
+  });
+  const [reportFilters, setReportFilters] = useState({
+    fromDate: "",
+    toDate: "",
+  });
 
   useEffect(() => {
     if (!userId) return;
-
-    const fetchData = async () => {
+    const loadData = async () => {
       setLoading(true);
       setError(null);
-
       try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("No token found. Please login.");
-
-        const res = await fetch(`${base}/api/dashboard/${userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || "Failed to fetch dashboard data");
-        }
-
-        const json = await res.json();
+        const filtersForAPI = {
+          ...medFilters,
+          reportFromDate: reportFilters.fromDate,
+          reportToDate: reportFilters.toDate,
+        };
+        const result = await fetchDashboardData(userId, filtersForAPI);
+        if (!result.success) throw new Error(result.error);
+        const reports = (result.reports || []).map((r) => ({
+          ...r,
+          uploadedAt: r.uploadedAt ? new Date(r.uploadedAt) : null,
+        }));
         setData({
-          meds: json.medications || [],
-          reports: json.reports || [],
-          chartData: json.chartData || [],
-          metrics: json.metrics || {},
+          meds: result.medications || [],
+          reports,
+          chartData: result.chartData || [],
+          metrics: result.metrics || {},
         });
       } catch (err) {
         setError(err.message);
@@ -79,9 +84,8 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-
-    fetchData();
-  }, [userId, base]);
+    loadData();
+  }, [userId, medFilters, reportFilters]);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
@@ -98,7 +102,69 @@ export default function DashboardPage() {
           </div>
         </header>
 
+        {/* -------------------- FILTERS -------------------- */}
+        <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+          <h2 className="text-lg font-semibold text-blue-900 mb-2">
+            Medication Filters
+          </h2>
+          <div className="flex flex-col sm:flex-row gap-4 mb-2">
+            <select
+              value={medFilters.status}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, status: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            >
+              <option value="">All</option>
+              <option value="taken">Taken</option>
+              <option value="missed">Missed</option>
+            </select>
+            <input
+              type="date"
+              value={medFilters.fromDate}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, fromDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+            <input
+              type="date"
+              value={medFilters.toDate}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, toDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+          <h2 className="text-lg font-semibold text-blue-900 mb-2">
+            Report Filters
+          </h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <input
+              type="date"
+              value={reportFilters.fromDate}
+              onChange={(e) =>
+                setReportFilters({ ...reportFilters, fromDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+            <input
+              type="date"
+              value={reportFilters.toDate}
+              onChange={(e) =>
+                setReportFilters({ ...reportFilters, toDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+          </div>
+        </div>
+
+        {/* -------------------- CHART + DATA -------------------- */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Chart */}
           <div className="bg-white shadow-md rounded-xl p-6">
             <h2 className="font-semibold mb-2 text-blue-900">
               Adherence (last 7 days)
@@ -133,14 +199,15 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Medications & Reports Section */}
+          {/* Medications + Reports */}
           <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
+            {/* Medications */}
             <div>
               <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
               {data.meds.length === 0 ? (
                 <p className="text-gray-600">No medications added.</p>
               ) : (
-                <ul className="list-disc ml-5 text-gray-800">
+                <ul className="list-disc ml-5 text-gray-800 mt-2">
                   {data.meds.map((m) => (
                     <li key={m._id}>{m.name}</li>
                   ))}
@@ -148,6 +215,7 @@ export default function DashboardPage() {
               )}
             </div>
 
+            {/* Reports */}
             <div>
               <h2 className="font-semibold text-blue-900 mb-2">
                 Recent Reports
@@ -165,7 +233,9 @@ export default function DashboardPage() {
                         <p className="font-semibold">{r.title}</p>
                         <p className="text-sm text-gray-500">
                           Uploaded:{" "}
-                          {new Date(r.uploadedAt).toLocaleDateString()}
+                          {r.uploadedAt
+                            ? r.uploadedAt.toLocaleString() // show full date + time
+                            : "N/A"}
                         </p>
                       </div>
                       <div className="flex gap-2">
