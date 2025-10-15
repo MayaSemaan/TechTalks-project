@@ -11,18 +11,23 @@ export default function UploadReportPage() {
   const [patients, setPatients] = useState([]);
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
 
+  // ✅ Fetch patients (with token)
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        const res = await axios.get(`${base}/api/patients`);
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${base}/api/patients`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         setPatients(res.data);
       } catch (err) {
         console.error("Failed to fetch patients:", err);
       }
     };
     fetchPatients();
-  }, []);
+  }, [base]);
 
+  // ✅ Handle form submission (with token)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !patient || !file)
@@ -31,20 +36,27 @@ export default function UploadReportPage() {
     const formData = new FormData();
     formData.append("title", title);
     formData.append("description", description);
-    formData.append("patient", patient); // changed from patientId
+    formData.append("patient", patient);
     formData.append("file", file);
 
     try {
+      const token = localStorage.getItem("token");
       await axios.post(`${base}/api/reports`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
       });
-      alert("Report uploaded successfully!");
+
+      // ✅ Success toast
+      alert("✅ Report uploaded successfully!");
       setTitle("");
       setDescription("");
       setPatient("");
       setFile(null);
     } catch (err) {
       alert(err.response?.data?.error || err.message);
+      console.error("Upload failed:", err);
     }
   };
 
@@ -52,7 +64,9 @@ export default function UploadReportPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8">
         <h1 className="text-3xl font-bold mb-6 text-blue-900">Upload Report</h1>
+
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
           <div>
             <label className="block text-gray-700 font-medium mb-1">
               Title
@@ -65,6 +79,7 @@ export default function UploadReportPage() {
             />
           </div>
 
+          {/* Description */}
           <div>
             <label className="block text-gray-700 font-medium mb-1">
               Description
@@ -76,6 +91,7 @@ export default function UploadReportPage() {
             />
           </div>
 
+          {/* Patient */}
           <div>
             <label className="block text-gray-700 font-medium mb-1">
               Patient
@@ -94,6 +110,7 @@ export default function UploadReportPage() {
             </select>
           </div>
 
+          {/* File Upload */}
           <div>
             <label className="block text-gray-700 font-medium mb-1">
               Upload File

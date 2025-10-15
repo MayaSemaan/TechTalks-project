@@ -60,7 +60,7 @@ export default function MedicationsPage() {
         };
       });
 
-      setMedications(normalized);
+      setMedications(normalized.filter(Boolean));
     } catch (err) {
       console.error("Failed to fetch medications:", err.message || err);
       setMedications([]);
@@ -89,11 +89,8 @@ export default function MedicationsPage() {
       };
 
       if (editingMed) {
-        // ✅ Merge old doses with new times
         const existingDoses = editingMed.doses || [];
-        const updatedTimes = payload.times || [];
-
-        const mergedDoses = updatedTimes.map((time) => {
+        const mergedDoses = (payload.times || []).map((time) => {
           const existing = existingDoses.find((d) => d.time === time);
           return (
             existing || {
@@ -107,26 +104,19 @@ export default function MedicationsPage() {
         const updatedMed = {
           ...editingMed,
           ...payload,
-          times: updatedTimes, // ✅ important: update times array
+          times: payload.times,
           doses: mergedDoses,
-          customInterval:
-            payload.schedule === "custom"
-              ? payload.customInterval || { number: 1, unit: "day" }
-              : null,
           reminders: payload.reminders || false,
         };
 
-        const res = await axios.put(
-          `/api/medications/${editingMed._id}`,
-          updatedMed,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await axios.put(`/api/medications/${editingMed._id}`, updatedMed, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         setMedications((prev) =>
           prev.map((m) => (m._id === editingMed._id ? updatedMed : m))
         );
       } else {
-        // ✅ New medication
         const res = await axios.post("/api/medications", payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -227,7 +217,7 @@ export default function MedicationsPage() {
             <p className="text-gray-500">No medications yet.</p>
           ) : (
             <div className="space-y-4">
-              {medications.filter(Boolean).map((med) => (
+              {medications.map((med) => (
                 <MedicationCard
                   key={med._id}
                   med={med}

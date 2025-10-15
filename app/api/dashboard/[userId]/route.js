@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import connectToDB from "../../../../lib/db.js";
 import Medication from "../../../../models/Medication.js";
 import Report from "../../../../models/Report.js";
+import User from "../../../../models/User.js";
 import { calculateCompliance } from "../../../../lib/complianceHelper.js";
+import { authenticate } from "../../../../middlewares/auth.js";
 
 export async function GET(req, { params }) {
   try {
@@ -10,16 +12,27 @@ export async function GET(req, { params }) {
     const { userId } = params;
     const { searchParams } = new URL(req.url);
 
-    // Medication filters
+    // Fetch logged-in user
+    let loggedInUser = null;
+    try {
+      loggedInUser = await authenticate(req); // returns full user object
+    } catch {
+      loggedInUser = { role: "guest" }; // if not logged in
+    }
+
+    // Fetch patient/user data
+    const user = await User.findById(userId).select("name email role");
+    if (!user)
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 }
+      );
+
+    // ----------------------- Medication filters -----------------------
     const statusFilter = searchParams.get("status"); // "taken" | "missed" | ""
     const medFromDate = searchParams.get("fromDate");
     const medToDate = searchParams.get("toDate");
 
-    // Report filters
-    const reportFromDate = searchParams.get("reportFromDate");
-    const reportToDate = searchParams.get("reportToDate");
-
-    // ----------------------- MEDICATIONS -----------------------
     const medications = await Medication.find({ userId });
 
     const medicationsData = medications
@@ -27,13 +40,11 @@ export async function GET(req, { params }) {
         const filteredDoses = med.doses.filter((dose) => {
           const doseDate = new Date(dose.date);
 
-          // Apply date range filters
           if (medFromDate && doseDate < new Date(`${medFromDate}T00:00:00Z`))
             return false;
           if (medToDate && doseDate > new Date(`${medToDate}T23:59:59Z`))
             return false;
 
-          // Apply status filters
           if (statusFilter === "taken" && dose.taken !== true) return false;
           if (statusFilter === "missed" && dose.taken !== false) return false;
 
@@ -49,7 +60,6 @@ export async function GET(req, { params }) {
         const dosesPending = filteredDoses.filter(
           (d) => d.taken === null
         ).length;
-
         const totalDoses = filteredDoses.length;
         const compliance = totalDoses ? (dosesTaken / totalDoses) * 100 : 0;
 
@@ -76,7 +86,10 @@ export async function GET(req, { params }) {
       })
       .filter(Boolean);
 
-    // ----------------------- REPORTS -----------------------
+    // ----------------------- Reports filters -----------------------
+    const reportFromDate = searchParams.get("reportFromDate");
+    const reportToDate = searchParams.get("reportToDate");
+
     const reportQuery = { patient: userId };
     if (reportFromDate || reportToDate) {
       reportQuery.createdAt = {};
@@ -94,7 +107,7 @@ export async function GET(req, { params }) {
       uploadedAt: r.createdAt ? r.createdAt.toISOString() : null,
     }));
 
-    // ----------------------- CHART DATA (last 7 days) -----------------------
+    // ----------------------- Chart data (last 7 days) -----------------------
     const chartData = [];
     const end = new Date();
     const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
@@ -117,7 +130,7 @@ export async function GET(req, { params }) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // ----------------------- METRICS -----------------------
+    // ----------------------- Metrics -----------------------
     const totalTaken = chartData.reduce((sum, d) => sum + d.taken, 0);
     const totalDoses = chartData.reduce(
       (sum, d) => sum + d.taken + d.missed,
@@ -128,6 +141,9 @@ export async function GET(req, { params }) {
       : 0;
 
     return NextResponse.json({
+      success: true,
+      user, // patient being viewed
+      loggedInUser, // who is viewing
       medications: medicationsData,
       reports,
       chartData,
@@ -136,7 +152,7 @@ export async function GET(req, { params }) {
   } catch (err) {
     console.error("Dashboard GET error:", err);
     return NextResponse.json(
-      { error: "Failed to load dashboard data" },
+      { success: false, error: "Failed to load dashboard data" },
       { status: 500 }
     );
   }
