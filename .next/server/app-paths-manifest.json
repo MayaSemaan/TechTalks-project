@@ -1,5 +1,3 @@
 {
-  "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
-  "/api/medications/route": "app/api/medications/route.js",
-  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js"
+  "/api/medications/route": "app/api/medications/route.js"
 }
