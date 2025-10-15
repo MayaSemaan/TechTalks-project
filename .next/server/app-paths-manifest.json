@@ -1,4 +1,5 @@
 {
-  "/api/dashboard/[userId]/reports/route": "app/api/dashboard/[userId]/reports/route.js",
-  "/api/dashboard/doctor/[doctorId]/patients/route": "app/api/dashboard/doctor/[doctorId]/patients/route.js"
+  "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
+  "/api/medications/route": "app/api/medications/route.js",
+  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js"
 }

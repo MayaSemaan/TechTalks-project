@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { fetchDashboardData } from "../../utils/api.js";
+import ChartComponent from "../../components/ChartComponent.jsx"; // Pie chart
 
 // Dynamic Recharts imports
 const ResponsiveContainer = dynamic(
@@ -130,9 +131,17 @@ export default function DashboardPage() {
     }
   };
 
+  // Load data initially and whenever filters change
   useEffect(() => {
     loadData();
   }, [userId, medFilters, reportFilters]);
+
+  // Refresh dashboard when navigating back from /medications
+  useEffect(() => {
+    const handleFocus = () => loadData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   const clearFilters = () => {
     setMedFilters({ status: "", fromDate: "", toDate: "" });
@@ -146,6 +155,12 @@ export default function DashboardPage() {
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
+  const pieData = {
+    labels: ["Taken", "Missed"],
+    values: [totalTaken, totalMissed],
+    colors: ["#3b82f6", "#f97316"], // Tailwind blue & orange
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -158,8 +173,9 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Filter Section */}
+        {/* Filters */}
         <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4 flex-wrap gap-4">
+          {/* Medication Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Medication Filters
@@ -195,6 +211,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Report Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Report Filters
@@ -222,6 +239,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Buttons */}
           <div className="flex flex-col gap-2">
             <button
               onClick={clearFilters}
@@ -229,7 +247,6 @@ export default function DashboardPage() {
             >
               Clear Filters
             </button>
-
             <button
               onClick={goToMedications}
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
@@ -246,7 +263,7 @@ export default function DashboardPage() {
           <div>Missed: {totalMissed}</div>
         </div>
 
-        {/* Chart + Data */}
+        {/* Charts */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white shadow-md rounded-xl p-6">
             <h2 className="font-semibold mb-2 text-blue-900">
@@ -282,89 +299,97 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
-            {/* Medications */}
-            <div>
-              <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
-              {data.meds.length === 0 ? (
-                <p className="text-gray-600">No medications added.</p>
-              ) : (
-                <ul className="text-gray-800 space-y-2">
-                  {data.meds.map((m) => (
-                    <li key={m._id} className="border rounded p-3 bg-blue-50">
-                      <div className="font-semibold">{m.name}</div>
-                      <div className="text-sm text-gray-700 mb-2">
-                        {m.dosage} {m.unit} ({m.type})
-                      </div>
-                      {m.filteredDoses.length ? (
-                        <ul className="ml-4 list-disc text-gray-800">
-                          {m.filteredDoses.map((d) => (
-                            <li key={d.doseId}>
-                              {new Date(d.date).toLocaleDateString()} {d.time} –{" "}
-                              {d.taken === true
-                                ? "Taken"
-                                : d.taken === false
-                                ? "Missed"
-                                : "Pending"}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-gray-500 text-sm">
-                          No doses in this filter.
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Reports */}
-            <div>
-              <h2 className="font-semibold text-blue-900 mb-2">
-                Recent Reports
-              </h2>
-              {data.reports.length === 0 ? (
-                <p className="text-gray-600">No reports available.</p>
-              ) : (
-                <div className="grid gap-4">
-                  {data.reports.map((r) => (
-                    <div
-                      key={r._id}
-                      className="bg-white shadow-md rounded-xl p-4 flex justify-between items-center"
-                    >
-                      <div>
-                        <p className="font-semibold">{r.title}</p>
-                        <p className="text-sm text-gray-500">
-                          Uploaded:{" "}
-                          {r.uploadedAt ? r.uploadedAt.toLocaleString() : "N/A"}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <a
-                          href={`/reports/view/${r._id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline text-blue-600"
-                        >
-                          View
-                        </a>
-                        <a
-                          href={r.fileUrl}
-                          download
-                          className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
-                        >
-                          Download
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="bg-white shadow-md rounded-xl p-6">
+            <h2 className="font-semibold mb-4 text-blue-900">
+              Overall Summary
+            </h2>
+            <div className="w-full h-64">
+              <ChartComponent data={pieData} />
             </div>
           </div>
         </section>
+
+        {/* Medications + Reports */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          {/* Medications */}
+          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
+            {data.meds.length === 0 ? (
+              <p className="text-gray-600">No medications added.</p>
+            ) : (
+              <ul className="text-gray-800 space-y-2">
+                {data.meds.map((m) => (
+                  <li key={m._id} className="border rounded p-3 bg-blue-50">
+                    <div className="font-semibold">{m.name}</div>
+                    <div className="text-sm text-gray-700 mb-2">
+                      {m.dosage} {m.unit} ({m.type})
+                    </div>
+                    {m.filteredDoses.length ? (
+                      <ul className="ml-4 list-disc text-gray-800">
+                        {m.filteredDoses.map((d) => (
+                          <li key={d.doseId}>
+                            {new Date(d.date).toLocaleDateString()} {d.time} –{" "}
+                            {d.taken === true
+                              ? "Taken"
+                              : d.taken === false
+                              ? "Missed"
+                              : "Pending"}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-gray-500 text-sm">
+                        No doses in this filter.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Reports */}
+          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
+            <h2 className="font-semibold text-blue-900 mb-2">Recent Reports</h2>
+            {data.reports.length === 0 ? (
+              <p className="text-gray-600">No reports available.</p>
+            ) : (
+              <div className="grid gap-4">
+                {data.reports.map((r) => (
+                  <div
+                    key={r._id}
+                    className="bg-white shadow-md rounded-xl p-4 flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="font-semibold">{r.title}</p>
+                      <p className="text-sm text-gray-500">
+                        Uploaded:{" "}
+                        {r.uploadedAt ? r.uploadedAt.toLocaleString() : "N/A"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={`/reports/view/${r._id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline text-blue-600"
+                      >
+                        View
+                      </a>
+                      <a
+                        href={r.fileUrl}
+                        download
+                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
