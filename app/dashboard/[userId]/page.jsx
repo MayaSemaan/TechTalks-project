@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { fetchDashboardData } from "../../utils/api.js";
@@ -35,6 +35,8 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
 
 export default function DashboardPage() {
   const { userId } = useParams();
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -137,6 +139,10 @@ export default function DashboardPage() {
     setReportFilters({ fromDate: "", toDate: "" });
   };
 
+  const goToMedications = () => {
+    router.push("/medications");
+  };
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
@@ -153,12 +159,12 @@ export default function DashboardPage() {
         </header>
 
         {/* Filter Section */}
-        <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4">
+        <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4 flex-wrap gap-4">
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Medication Filters
             </h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-2">
+            <div className="flex flex-col sm:flex-row gap-4 mb-2 flex-wrap">
               <select
                 value={medFilters.status}
                 onChange={(e) =>
@@ -193,7 +199,7 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Report Filters
             </h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-2">
+            <div className="flex flex-col sm:flex-row gap-4 mb-2 flex-wrap">
               <input
                 type="date"
                 value={reportFilters.fromDate}
@@ -216,16 +222,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <button
-            onClick={clearFilters}
-            className="self-end bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
-          >
-            Clear Filters
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={clearFilters}
+              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
+            >
+              Clear Filters
+            </button>
+
+            <button
+              onClick={goToMedications}
+              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"
+            >
+              Manage Medications
+            </button>
+          </div>
         </div>
 
         {/* Totals */}
-        <div className="bg-white shadow-md rounded-xl p-4 mb-4 flex gap-6 text-blue-900 font-semibold">
+        <div className="bg-white shadow-md rounded-xl p-4 mb-4 flex gap-6 text-blue-900 font-semibold flex-wrap">
           <div>Total Doses: {totalDoses.length}</div>
           <div>Taken: {totalTaken}</div>
           <div>Missed: {totalMissed}</div>

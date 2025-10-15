@@ -16,15 +16,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/dashboard/[userId]/route.js"
     ],
-    "/reports/view/[reportId]/page": [
+    "/medications/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/reports/view/[reportId]/page.js"
+      "static/chunks/app/medications/page.js"
     ],
-    "/api/reports/[reportId]/route": [
+    "/api/medications/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/reports/[reportId]/route.js"
+      "static/chunks/app/api/medications/route.js"
+    ],
+    "/api/medications/[id]/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/medications/[id]/route.js"
     ]
   }
 }
