@@ -10,19 +10,18 @@ import {
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const ChartComponent = ({ data }) => {
+export default function ChartComponent({ data }) {
+  // Convert [{name, value}, ...] into labels and numbers
+  const labels = data.map((item) => item.name);
+  const values = data.map((item) => item.value);
+
   const chartData = {
-    labels: data.labels,
+    labels,
     datasets: [
       {
         label: "Medications",
-        data: data.values,
-        backgroundColor: [
-          "#4A90E2",
-          "#50E3C2",
-          "#F5A623",
-          "#9013FE",
-        ],
+        data: values,
+        backgroundColor: ["#22c55e", "#ef4444", "#facc15", "#3b82f6"],
         borderColor: "#fff",
         borderWidth: 2,
       },
@@ -34,9 +33,16 @@ const ChartComponent = ({ data }) => {
       legend: {
         position: "bottom",
         labels: {
-          font: {
-            size: 14,
-            weight: "bold",
+          font: { size: 14, weight: "bold" },
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+            const value = context.parsed;
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${context.label}: ${value} (${percentage}%)`;
           },
         },
       },
@@ -49,6 +55,4 @@ const ChartComponent = ({ data }) => {
       <Pie data={chartData} options={options} />
     </div>
   );
-};
-
-export default ChartComponent;
+}

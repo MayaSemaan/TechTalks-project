@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import Link from "next/link";
 
 export default function Login() {
   const router = useRouter();
@@ -18,15 +17,16 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // ✅ Updated API path
-      const res = await axios.post("/api/login", form);
+      const res = await axios.post("http://localhost:5000/login", form);
+
       console.log("Login successful:", res.data);
 
-      // Optional: store token if backend provides one
-      // localStorage.setItem("token", res.data.token);
+      // store token for authentication
+      localStorage.setItem("token", res.data.token || "dummy-token"); // use real token from backend if available
 
       router.push("/dashboard");
     } catch (err) {
+      console.error("Login error:", err.response?.data || err.message);
       setError(err.response?.data?.message || "Invalid email or password.");
     }
   };
@@ -37,23 +37,12 @@ export default function Login() {
       {error && <p style={{ color: "red", textAlign: "center", fontSize: "14px" }}>{error}</p>}
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-        <label>
-          Email:
-          <input type="email" name="email" onChange={handleChange} value={form.email} required style={{ padding: "12px", borderRadius: "8px", border: "1px solid #ccc", width: "100%" }} />
-        </label>
-        <label>
-          Password:
-          <input type="password" name="password" onChange={handleChange} value={form.password} required style={{ padding: "12px", borderRadius: "8px", border: "1px solid #ccc", width: "100%" }} />
-        </label>
-
+        <input type="email" name="email" onChange={handleChange} value={form.email} placeholder="Email" required style={{ padding: "12px", borderRadius: "8px", border: "1px solid #ccc", width: "100%" }} />
+        <input type="password" name="password" onChange={handleChange} value={form.password} placeholder="Password" required style={{ padding: "12px", borderRadius: "8px", border: "1px solid #ccc", width: "100%" }} />
         <button type="submit" style={{ padding: "12px", borderRadius: "8px", border: "none", backgroundColor: "#0070f3", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>
           Login
         </button>
       </form>
-
-      <p style={{ textAlign: "center", marginTop: "15px", fontSize: "14px" }}>
-        Don’t have an account? <Link href="/signup" style={{ color: "#0070f3", fontWeight: "bold" }}>Sign Up</Link>
-      </p>
     </div>
   );
 }

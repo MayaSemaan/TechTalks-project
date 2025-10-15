@@ -1,139 +1,174 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
-import MedicationForm from "../../components/MedicationForm";
-import MedicationCard from "../../components/MedicationCard";
 
-// Automatically determine backend URL
-const getBackendURL = () => {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
+export default function Medications() {
+  const router = useRouter();
+  const [meds, setMeds] = useState([]);
+  const [form, setForm] = useState({ name: "", dosage: "", schedule: "" });
+  const [editingId, setEditingId] = useState(null); // Track editing
 
-    // Localhost frontend → use localhost backend
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://127.0.0.1:5000";
-    }
-
-    // For WSL/Docker/VM → use host IP (same as frontend hostname)
-    return `http://${hostname}:5000`;
-  }
-
-  // Default fallback
-  return "http://127.0.0.1:5000";
-};
-
-export default function MedicationsPage() {
-  const [medications, setMedications] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-
-  const BASE_URL = getBackendURL();
-
-  // Fetch medications
-  const fetchMedications = async () => {
-    try {
-      const res = await axios.get(`${BASE_URL}/medications`);
-      setMedications(res.data);
-    } catch (err) {
-      console.error("Failed to fetch medications:", err.message);
-      alert(
-        "Cannot reach the backend. Make sure your server is running and the URL is correct."
-      );
-    }
-  };
+  const backendUrl = "http://localhost:5000";
 
   useEffect(() => {
-    fetchMedications();
-    const interval = setInterval(fetchMedications, 15000);
-    return () => clearInterval(interval);
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+    } else {
+      fetchMeds();
+    }
   }, []);
 
-  const handleSave = async (med) => {
+  const fetchMeds = async () => {
     try {
-      if (editing) {
-        await axios.put(`${BASE_URL}/medications/${med.id}`, med);
-        setMedications((prev) => prev.map((m) => (m.id === med.id ? med : m)));
-      } else {
-        const res = await axios.post(`${BASE_URL}/medications`, med);
-        setMedications((prev) => [...prev, res.data]);
-      }
-      setEditing(null);
-      setShowForm(false);
+      const res = await axios.get(`${backendUrl}/medications`);
+      setMeds(res.data);
     } catch (err) {
-      console.error("Failed to save medication:", err.message);
-      alert("Failed to save medication");
+      console.error(err);
     }
   };
 
-  const handleStatusChange = async (id, status) => {
-    try {
-      await axios.put(`${BASE_URL}/medications/${id}`, { status });
-      setMedications((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
-    } catch (err) {
-      console.error("Failed to update status:", err.message);
-      alert("Failed to update status");
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (editingId) {
+      // Edit existing medication
+      await axios.put(`${backendUrl}/medications/${editingId}`, form);
+      setEditingId(null);
+    } else {
+      // Add new medication
+      await axios.post(`${backendUrl}/medications`, form);
     }
+    setForm({ name: "", dosage: "", schedule: "" });
+    fetchMeds();
   };
 
-  const handleEdit = (med) => {
-    setEditing(med);
-    setShowForm(true);
+  const markTaken = async (id) => {
+    await axios.put(`${backendUrl}/medications/${id}`, { status: "taken" });
+    fetchMeds();
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this medication?")) return;
-    try {
-      await axios.delete(`${BASE_URL}/medications/${id}`);
-      setMedications((prev) => prev.filter((m) => m.id !== id));
-    } catch (err) {
-      console.error("Failed to delete medication:", err.message);
-      alert("Failed to delete medication");
-    }
+  const markMissed = async (id) => {
+    await axios.put(`${backendUrl}/medications/${id}`, { status: "missed" });
+    fetchMeds();
+  };
+
+  const deleteMed = async (id) => {
+    await axios.delete(`${backendUrl}/medications/${id}`);
+    fetchMeds();
+  };
+
+  const startEdit = (med) => {
+    setForm({ name: med.name, dosage: med.dosage, schedule: med.schedule });
+    setEditingId(med.id);
   };
 
   return (
-    <div style={{ maxWidth: "600px", margin: "40px auto", padding: "0 20px" }}>
-      <h1 style={{ textAlign: "center", marginBottom: "30px" }}>My Medications</h1>
-      <button
-        onClick={() => setShowForm(true)}
-        style={{
-          marginBottom: "15px",
-          padding: "10px 15px",
-          backgroundColor: "#2196F3",
-          color: "#fff",
-          border: "none",
-          borderRadius: "5px",
-          cursor: "pointer",
-        }}
-      >
-        + Add Medication
-      </button>
+    <div style={{ maxWidth: "700px", margin: "50px auto", fontFamily: "sans-serif" }}>
+      <h1 style={{ textAlign: "center", marginBottom: "20px" }}>My Medications</h1>
 
-      {showForm && (
-        <MedicationForm
-          onSave={handleSave}
-          onCancel={() => {
-            setShowForm(false);
-            setEditing(null);
-          }}
-          initialData={editing}
+      {/* Form for Add / Edit */}
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: "10px", marginBottom: "30px" }}>
+        <input
+          type="text"
+          placeholder="Medication Name"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          required
+          style={{ flex: 2, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }}
         />
-      )}
+        <input
+          type="text"
+          placeholder="Dosage"
+          value={form.dosage}
+          onChange={(e) => setForm({ ...form, dosage: e.target.value })}
+          required
+          style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }}
+        />
+        <input
+          type="text"
+          placeholder="Schedule"
+          value={form.schedule}
+          onChange={(e) => setForm({ ...form, schedule: e.target.value })}
+          required
+          style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }}
+        />
+        <button
+          type="submit"
+          style={{
+            padding: "10px 20px",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: "#007bff",
+            color: "white",
+            fontWeight: "bold",
+          }}
+        >
+          {editingId ? "💾 Save" : "+ Add"}
+        </button>
+      </form>
 
-      {medications.length === 0 ? (
-        <p>No medications yet.</p>
-      ) : (
-        medications.map((med) => (
-          <MedicationCard
-            key={med.id}
-            med={med}
-            onStatusChange={handleStatusChange}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))
-      )}
+      {/* Medication list */}
+      {meds.map((med) => (
+        <div
+          key={med.id}
+          style={{
+            border: "1px solid #ddd",
+            borderRadius: "10px",
+            padding: "15px",
+            marginBottom: "15px",
+            boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div style={{ marginBottom: "10px", fontWeight: "bold" }}>
+            {med.name} - {med.dosage}
+          </div>
+          <div style={{ marginBottom: "10px" }}>Frequency: {med.schedule || "N/A"}</div>
+          <div style={{ marginBottom: "10px" }}>
+            Status:{" "}
+            <span
+              style={{
+                color:
+                  med.status === "pending"
+                    ? "orange"
+                    : med.status === "taken"
+                    ? "green"
+                    : "red",
+                fontWeight: "bold",
+              }}
+            >
+              {med.status}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              onClick={() => markTaken(med.id)}
+              style={{ flex: 1, backgroundColor: "green", color: "white", border: "none", borderRadius: "5px", padding: "8px" }}
+            >
+              ✅ Taken
+            </button>
+            <button
+              onClick={() => markMissed(med.id)}
+              style={{ flex: 1, backgroundColor: "red", color: "white", border: "none", borderRadius: "5px", padding: "8px" }}
+            >
+              ❌ Missed
+            </button>
+            <button
+              onClick={() => startEdit(med)}
+              style={{ flex: 1, backgroundColor: "#007bff", color: "white", border: "none", borderRadius: "5px", padding: "8px" }}
+            >
+              ✏️ Edit
+            </button>
+            <button
+              onClick={() => deleteMed(med.id)}
+              style={{ flex: 1, backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "5px", padding: "8px" }}
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
