@@ -1,63 +1,30 @@
 import mongoose from "mongoose";
+import "./User.js";
 
-const DoseSchema = new mongoose.Schema(
-  {
-    date: { type: Date, required: true },
-    taken: { type: Boolean, default: null }, // ✅ default null
-    time: { type: String, required: true }, // HH:MM string
+function validateSchedule(v) {
+  const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM)$/i;
+  return regex.test(v);
+}
+
+const MedicationSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    validate: {
+      validator: async function(value) {
+        const User = mongoose.model("User");
+        return await User.exists({ _id: value });
+      },
+      message: "Invalid User ID"
+    }
   },
-  { _id: false }
-);
+  name: { type: String, required: true },
+  dosage: { type: String, required: true },
+  schedule: { type: String, required: true, validate: [validateSchedule, "Use HH:MM AM/PM"] },
+  status: { type: String, enum: ["taken", "missed"], default: "taken" }
+}, { timestamps: true });
 
-const CustomIntervalSchema = new mongoose.Schema(
-  {
-    number: { type: Number, default: 1 },
-    unit: { type: String, enum: ["day", "week", "month"], default: "day" },
-  },
-  { _id: false }
-);
+MedicationSchema.index({ userId: 1, name: 1 }, { unique: true });
 
-const MedicationSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    name: { type: String, required: true },
-    dosage: { type: Number, required: true },
-    unit: {
-      type: String,
-      enum: ["mg", "ml", "pills", "capsules", "drops"],
-      default: "mg",
-    },
-    type: {
-      type: String,
-      enum: ["tablet", "capsule", "syrup", "injection"],
-      default: "tablet",
-    },
-    schedule: {
-      type: String,
-      enum: ["daily", "weekly", "monthly", "custom"],
-      default: "daily",
-      required: true,
-    },
-    customInterval: { type: CustomIntervalSchema, required: false },
-    times: [{ type: String, required: true }],
-    status: {
-      type: String,
-      enum: ["pending", "taken", "missed"],
-      default: "pending",
-    },
-    startDate: { type: Date, default: null },
-    endDate: { type: Date, default: null },
-    reminders: { type: Boolean, default: false },
-    notes: { type: String, default: "" },
-    doses: [DoseSchema],
-    notifiedTimes: [{ type: String }],
-  },
-  { timestamps: true }
-);
-
-export default mongoose.models.Medication ||
-  mongoose.model("Medication", MedicationSchema);
+export default mongoose.models.Medication || mongoose.model("Medication", MedicationSchema);

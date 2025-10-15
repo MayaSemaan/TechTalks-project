@@ -1,27 +1,44 @@
-import { NextResponse } from "next/server";
-import connectToDB from "../../../lib/db.js";
-import User from "../../../models/User.js";
 import bcrypt from "bcryptjs";
+import { connectToDB } from "@/lib/db";
+import User from "@/models/User";
 import jwt from "jsonwebtoken";
 
 export async function POST(req) {
   try {
     await connectToDB();
+
     const { email, password } = await req.json();
+    if (!email || !password) {
+      return new Response(JSON.stringify({ msg: "Missing fields" }), {
+        status: 400,
+      });
+    }
 
     const user = await User.findOne({ email });
-    if (!user)
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user) {
+      return new Response(JSON.stringify({ msg: "User not found" }), {
+        status: 404,
+      });
+    }
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match)
-      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return new Response(JSON.stringify({ msg: "Incorrect password" }), {
+        status: 401,
+      });
+    }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
-    // ✅ Return role explicitly
-    return NextResponse.json({ user, token }, { status: 200 });
+    return new Response(JSON.stringify({ msg: "Login successful", token }), {
+      status: 200,
+    });
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return new Response(
+      JSON.stringify({ msg: "Server error", error: err.message }),
+      { status: 500 }
+    );
   }
 }

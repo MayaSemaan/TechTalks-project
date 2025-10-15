@@ -1,54 +1,26 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* Body gradient background */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
 body {
-  @apply font-sans bg-gradient-to-br from-blue-50 via-white to-purple-50 min-h-screen;
-}
-
-/* Card styling */
-.card {
-  @apply bg-white shadow-md rounded-lg p-6 mb-4;
-}
-
-/* Card hover */
-.card:hover {
-  @apply shadow-xl transform scale-105 transition-all duration-200;
-}
-
-/* Table styling */
-table {
-  @apply min-w-full bg-white rounded shadow overflow-hidden;
-}
-
-th,
-td {
-  @apply border-b border-gray-200 px-4 py-2 text-left;
-}
-
-th {
-  @apply bg-gray-100 font-semibold;
-}
-
-/* Button styling */
-.button-primary {
-  @apply bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition;
-}
-
-.button-secondary {
-  @apply bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition;
-}
-
-.button-edit {
-  @apply bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 transition;
-}
-
-.button-delete {
-  @apply bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition;
-}
-
-/* Links */
-a {
-  @apply underline text-blue-600 hover:text-blue-800;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
 }
