@@ -2,11 +2,18 @@
 
 export async function fetchDashboardData(userId, filters = {}) {
   try {
-    // Build query parameters for GET request
     const params = new URLSearchParams();
-    if (filters.status) params.append("status", filters.status); // "taken" | "missed"
+
+    // Medication filters
+    if (filters.status) params.append("status", filters.status);
     if (filters.fromDate) params.append("fromDate", filters.fromDate);
     if (filters.toDate) params.append("toDate", filters.toDate);
+
+    // Report filters
+    if (filters.reportFromDate)
+      params.append("reportFromDate", filters.reportFromDate);
+    if (filters.reportToDate)
+      params.append("reportToDate", filters.reportToDate);
 
     const token = localStorage.getItem("token");
 
