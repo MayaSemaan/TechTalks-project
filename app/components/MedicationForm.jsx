@@ -46,11 +46,19 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
   const [notes, setNotes] = useState(medData.notes || "");
   const [reminders, setReminders] = useState(Boolean(medData.reminders));
   const [timeError, setTimeError] = useState(false);
+  const [dosageError, setDosageError] = useState(false);
 
   const unitOptions = ["mg", "ml", "pills", "drops"];
   const typeOptions = ["tablet", "capsule", "syrup", "injection"];
   const scheduleOptions = ["daily", "weekly", "monthly", "custom"];
   const intervalUnits = ["day", "week", "month"];
+
+  // ← NEW: auto-hide dosage error when changed to > 0
+  useEffect(() => {
+    if (Number(dosage) > 0 && dosageError) {
+      setDosageError(false);
+    }
+  }, [dosage, dosageError]);
 
   useEffect(() => {
     if (schedule !== "custom") {
@@ -71,9 +79,11 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (dosage < 0) {
-      alert("Dosage cannot be negative.");
+    if (Number(dosage) <= 0) {
+      setDosageError(true);
       return;
+    } else {
+      setDosageError(false);
     }
 
     if (!startDate || !endDate) {
@@ -158,15 +168,19 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
       />
 
       <div className="flex gap-2">
-        <input
-          type="number"
-          placeholder="Dosage"
-          min={0}
-          value={dosage}
-          onChange={(e) => setDosage(e.target.value)}
-          required
-          className="flex-1 border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
-        />
+        <div className="flex-1">
+          <input
+            type="number"
+            placeholder="Dosage"
+            min={0}
+            value={dosage}
+            onChange={(e) => setDosage(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
+          />
+          {dosageError && (
+            <p className="text-red-500 text-sm mt-1">Dosage cannot be 0.</p>
+          )}
+        </div>
         <select
           value={unit}
           onChange={(e) => setUnit(e.target.value)}

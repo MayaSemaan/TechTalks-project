@@ -1,7 +1,5 @@
 {
   "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/api/dashboard/doctor/[doctorId]/patients/route": "app/api/dashboard/doctor/[doctorId]/patients/route.js",
-  "/dashboard/doctor/[doctorId]/page": "app/dashboard/doctor/[doctorId]/page.js",
-  "/dashboard/[userId]/page": "app/dashboard/[userId]/page.js"
+  "/dashboard/patient/[userId]/page": "app/dashboard/patient/[userId]/page.js",
+  "/dashboard/doctor/[doctorId]/patient/[patientId]/page": "app/dashboard/doctor/[doctorId]/patient/[patientId]/page.js"
 }

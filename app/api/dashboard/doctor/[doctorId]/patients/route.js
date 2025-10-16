@@ -2,15 +2,17 @@ import connectToDB from "../../../../../../lib/db.js";
 import User from "../../../../../../models/User.js";
 import Report from "../../../../../../models/Report.js";
 import { calculateCompliance } from "../../../../../../lib/complianceHelper.js";
+import mongoose from "mongoose";
 
 export async function GET(req, { params }) {
   try {
     await connectToDB();
-
     const { doctorId } = params;
 
-    // Ensure the doctor exists and has the correct role
-    const doctor = await User.findById(doctorId).select("name role patients");
+    const doctor = await User.findById(doctorId)
+      .populate("patients", "name email") // 🧩 populate to get names/emails
+      .select("name role patients");
+
     if (!doctor || doctor.role !== "doctor") {
       return new Response(
         JSON.stringify({ error: "Unauthorized or not a doctor" }),
@@ -20,13 +22,12 @@ export async function GET(req, { params }) {
 
     const patients = doctor.patients || [];
 
-    // Fetch patient info with compliance and report counts
+    // Fetch data for each patient
     const patientData = await Promise.all(
-      patients.map(async (patientId) => {
-        const patient = await User.findById(patientId).select("name email");
-        if (!patient) return null;
+      patients.map(async (p) => {
+        const patientId = p._id;
 
-        const compliance = await calculateCompliance(patientId, false); // include all doses
+        const compliance = await calculateCompliance(patientId, false);
 
         const reportCount = await Report.countDocuments({
           doctor: doctorId,
@@ -34,19 +35,17 @@ export async function GET(req, { params }) {
         });
 
         return {
-          patientId: patient._id,
-          patientName: patient.name,
-          patientEmail: patient.email,
-          complianceTotal: compliance.compliancePercentage,
-          dosesTaken: compliance.totalTaken,
-          dosesMissed: compliance.totalMissed,
-          dosesPending: compliance.totalPending,
-          totalReports: reportCount,
+          patientId,
+          patientName: p.name || "Unnamed Patient",
+          patientEmail: p.email || "No email",
+          complianceTotal: compliance.compliancePercentage || 0,
+          dosesTaken: compliance.totalTaken || 0,
+          dosesMissed: compliance.totalMissed || 0,
+          dosesPending: compliance.totalPending || 0,
+          totalReports: reportCount || 0,
         };
       })
     );
-
-    const validPatients = patientData.filter((p) => p !== null);
 
     return new Response(
       JSON.stringify({
@@ -54,8 +53,8 @@ export async function GET(req, { params }) {
         data: {
           doctorId: doctor._id,
           doctorName: doctor.name,
-          totalPatients: validPatients.length,
-          patients: validPatients,
+          totalPatients: patientData.length,
+          patients: patientData,
         },
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }

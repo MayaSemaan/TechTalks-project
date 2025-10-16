@@ -66,8 +66,17 @@ export async function POST(req) {
     const user = await authenticate(req);
     await connectToDB();
 
-    if (user.role !== "doctor")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    if (user.role !== "doctor") {
+      console.warn(
+        `❌ Upload blocked — user ${user._id} (${user.role}) tried to upload a report.`
+      );
+      return NextResponse.json(
+        {
+          error: `Forbidden: only doctors can upload reports (you are ${user.role})`,
+        },
+        { status: 403 }
+      );
+    }
 
     const contentType = req.headers.get("content-type") || "";
     let report;

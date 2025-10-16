@@ -1,7 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 
 export default function DoctorDashboardPage() {
   const { doctorId } = useParams();
@@ -21,15 +21,10 @@ export default function DoctorDashboardPage() {
     setError(null);
     try {
       const res = await fetch(`/api/dashboard/doctor/${doctorId}/patients`);
-
-      // Ensure JSON response
       const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error(
-          "Invalid response from server, expected JSON but got HTML"
-        );
+      if (!contentType?.includes("application/json")) {
+        throw new Error("Invalid response from server, expected JSON");
       }
-
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
 
@@ -38,8 +33,8 @@ export default function DoctorDashboardPage() {
         totalPatients: result.data.totalPatients,
         patients: result.data.patients.map((p) => ({
           patientId: p.patientId,
-          patientName: p.name, // match API
-          patientEmail: p.email, // match API
+          patientName: p.patientName,
+          patientEmail: p.patientEmail,
           complianceTotal: p.complianceTotal,
           dosesTaken: p.dosesTaken,
           dosesMissed: p.dosesMissed,
@@ -58,9 +53,8 @@ export default function DoctorDashboardPage() {
     loadDoctorData();
   }, [doctorId]);
 
-  const goToPatientDashboard = (patientId) => {
-    router.push(`/dashboard/${patientId}`);
-  };
+  const goToPatientDashboard = (patientId) =>
+    router.push(`/dashboard/patient/${patientId}`);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
@@ -84,14 +78,16 @@ export default function DoctorDashboardPage() {
             <p className="text-gray-600">No patients assigned.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {doctorData.patients.map((p) => (
+              {doctorData.patients.map((p, index) => (
                 <div
-                  key={p.patientId}
-                  className="border rounded p-4 flex flex-col justify-between bg-blue-50"
+                  key={p.patientId || `patient-${index}`}
+                  className="border rounded-xl p-4 flex flex-col justify-between bg-blue-100 hover:bg-blue-200 transition"
                 >
-                  <div className="mb-2">
-                    <p className="font-semibold">{p.patientName}</p>
-                    <p className="text-sm text-gray-600">{p.patientEmail}</p>
+                  <div className="mb-3">
+                    <p className="text-lg font-bold text-blue-900">
+                      {p.patientName || "Unnamed Patient"}
+                    </p>
+                    <p className="text-sm text-gray-700">{p.patientEmail}</p>
                   </div>
 
                   <div className="text-sm space-y-1">
@@ -103,10 +99,14 @@ export default function DoctorDashboardPage() {
                   </div>
 
                   <button
-                    onClick={() => goToPatientDashboard(p.patientId)}
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/doctor/${doctorId}/patient/${p.patientId}`
+                      )
+                    }
                     className="mt-3 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
                   >
-                    View Patient Dashboard
+                    View Patient
                   </button>
                 </div>
               ))}

@@ -20,6 +20,7 @@ export async function fetchDashboardData(userId, filters = {}) {
 
     const res = await fetch(`/api/dashboard/${userId}?${params.toString()}`, {
       cache: "no-store",
+      credentials: "include", // ✅ include cookies for session auth
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -50,6 +51,7 @@ export async function fetchDashboardData(userId, filters = {}) {
     return {
       success: true,
       user,
+      loggedInUser: data.loggedInUser || { role: null, id: null },
       medications: data.medications || [],
       reports: data.reports || [],
       chartData: data.chartData || [],

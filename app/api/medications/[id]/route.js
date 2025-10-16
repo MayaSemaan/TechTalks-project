@@ -180,3 +180,42 @@ export async function DELETE(req, { params }) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }
+// -------------------
+// GET /api/medications/:id
+// -------------------
+export async function GET(req, { params }) {
+  try {
+    const user = await authenticate(req);
+    await connectToDB();
+
+    const { id } = params;
+    if (!mongoose.Types.ObjectId.isValid(id))
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+
+    const med = await Medication.findById(id);
+    if (!med)
+      return NextResponse.json(
+        { error: "Medication not found" },
+        { status: 404 }
+      );
+
+    // Authorization (owner, family, or doctor)
+    const isOwner = med.userId.toString() === user._id.toString();
+    const isDoctor = user.role === "doctor";
+    const isFamily = user.role === "family";
+    if (!isOwner && !isDoctor && !isFamily)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    return NextResponse.json({
+      success: true,
+      medication: {
+        ...med.toObject(),
+        startDate: med.startDate?.toISOString() || null,
+        endDate: med.endDate?.toISOString() || null,
+      },
+    });
+  } catch (err) {
+    console.error("❌ GET /medications/:id error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

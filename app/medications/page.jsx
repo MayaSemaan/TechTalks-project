@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // ← add this at the top
 import axios from "axios";
 import MedicationForm from "../components/MedicationForm";
 import MedicationCard from "../components/MedicationCard";
 
 export default function MedicationsPage() {
+  const router = useRouter(); // ← initialize router
   const [medications, setMedications] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
@@ -206,6 +208,18 @@ export default function MedicationsPage() {
         />
       ) : (
         <div>
+          {/* ADD: Back to Dashboard button */}
+          <button
+            onClick={() =>
+              router.push(
+                `/dashboard/patient/${localStorage.getItem("userId")}`
+              )
+            }
+            className="mb-4 bg-gray-300 text-black px-4 py-2 rounded-xl hover:bg-gray-400 transition"
+          >
+            ← Back to Dashboard
+          </button>
+
           <button
             onClick={() => setShowForm(true)}
             className="mb-6 bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition"

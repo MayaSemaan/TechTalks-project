@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import jwt_decode from "jwt-decode";
 
 export default function SingleReportPage() {
   const { reportId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,12 +22,10 @@ export default function SingleReportPage() {
     const fetchReport = async () => {
       try {
         setLoading(true);
-
         if (typeof window === "undefined") return;
 
         const token = localStorage.getItem("token");
         if (!token) {
-          // User not logged in, redirect to login
           router.replace("/login");
           return;
         }
@@ -51,18 +52,55 @@ export default function SingleReportPage() {
     fetchReport();
   }, [reportId, router, base]);
 
-  // Robust Back to Dashboard button
+  // Back to Dashboard button
   const handleBack = () => {
     if (typeof window === "undefined") return;
 
-    const userId = localStorage.getItem("userId");
-
-    if (userId) {
-      // Navigate to the dashboard for this user
-      router.replace(`/dashboard/${userId}`);
-    } else {
-      // If no userId, send to login page
+    const token = localStorage.getItem("token");
+    if (!token) {
       router.replace("/login");
+      return;
+    }
+
+    // Check if doctor came from a patient dashboard
+    const fromDoctorId = searchParams.get("doctorId");
+    const fromPatientId = searchParams.get("patientId");
+
+    // If both are present → doctor viewing a patient's report
+    if (fromDoctorId && fromPatientId) {
+      router.replace(
+        `/dashboard/doctor/${fromDoctorId}/patient/${fromPatientId}`
+      );
+      return;
+    }
+
+    // Otherwise, go back based on logged-in role
+    try {
+      const decoded = jwt_decode(token);
+      const role = decoded.role;
+      const userId = decoded.id || decoded._id;
+
+      if (!userId) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      switch (role) {
+        case "doctor":
+          router.replace(`/dashboard/doctor/${userId}`);
+          break;
+        case "patient":
+          router.replace(`/dashboard/patient/${userId}`);
+          break;
+        case "family":
+          router.replace(`/dashboard/family/${userId}`);
+          break;
+        default:
+          router.replace("/dashboard");
+      }
+    } catch (err) {
+      console.error("Failed to decode token:", err);
+      router.replace("/dashboard");
     }
   };
 
@@ -121,7 +159,7 @@ export default function SingleReportPage() {
         </div>
 
         {report.fileUrl && (
-          <div className="mt-8 flex gap-4">
+          <div className="mt-8 flex flex-wrap gap-4">
             <a
               href={report.fileUrl}
               target="_blank"
