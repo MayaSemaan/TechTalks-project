@@ -37,7 +37,7 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
   ssr: false,
 });
 
-export default function PatientDashboardPage() {
+export default function DashboardPage() {
   const { userId } = useParams();
   const router = useRouter();
 
@@ -51,7 +51,10 @@ export default function PatientDashboardPage() {
   });
 
   const [user, setUser] = useState({ role: "patient", id: null, name: "" });
-  const [loggedInUser, setLoggedInUser] = useState({ role: null, id: null });
+  const [loggedInUser, setLoggedInUser] = useState({
+    role: "patient",
+    id: null,
+  });
 
   const [medFilters, setMedFilters] = useState({
     status: "",
@@ -72,11 +75,7 @@ export default function PatientDashboardPage() {
       if (!result.success) throw new Error(result.error);
 
       setUser(result.user);
-      setLoggedInUser(
-        result.loggedInUser
-          ? { ...result.loggedInUser, id: String(result.loggedInUser.id) }
-          : { role: null, id: null }
-      );
+      setLoggedInUser(result.loggedInUser || { role: "patient", id: null });
 
       const medsWithConfirm = (result.medications || []).map((m) => ({
         ...m,
@@ -110,14 +109,10 @@ export default function PatientDashboardPage() {
     setReportFilters({ fromDate: "", toDate: "" });
   };
 
-  // Replace your current goToMedications with this:
-  const goToMedications = () => {
-    router.push("/medications");
-  };
+  const goToMedications = () => router.push("/medications");
 
   const handleDoseToggle = async (medId, doseId, currentStatus) => {
-    if (String(loggedInUser.id) !== String(userId)) return;
-    const newStatus = !currentStatus;
+    const newStatus = currentStatus === true ? false : true;
     const result = await updateDoseStatus(medId, doseId, newStatus);
     if (result.success) {
       setData((prev) => ({
@@ -137,7 +132,8 @@ export default function PatientDashboardPage() {
   };
 
   const handleDeleteMedication = async (medId) => {
-    if (String(loggedInUser.id) !== String(userId)) return;
+    if (!(loggedInUser.role === "patient" && loggedInUser.id === userId))
+      return;
     const result = await deleteMedication(medId);
     if (result.success) {
       setData((prev) => ({
@@ -151,10 +147,8 @@ export default function PatientDashboardPage() {
     return data.meds
       .map((m) => {
         let doses = m.filteredDoses || [];
-        if (medFilters.status === "taken")
-          doses = doses.filter((d) => d.taken === true);
-        if (medFilters.status === "missed")
-          doses = doses.filter((d) => d.taken === false);
+
+        // Apply date filters
         if (medFilters.fromDate)
           doses = doses.filter(
             (d) => new Date(d.date) >= new Date(medFilters.fromDate)
@@ -163,21 +157,18 @@ export default function PatientDashboardPage() {
           doses = doses.filter(
             (d) => new Date(d.date) <= new Date(medFilters.toDate)
           );
+
+        // Apply status filter (only taken or missed)
+        if (medFilters.status === "taken") {
+          doses = doses.filter((d) => d.taken === true);
+        } else if (medFilters.status === "missed") {
+          doses = doses.filter((d) => d.taken === false);
+        }
+
         return { ...m, filteredDoses: doses };
       })
-      .filter((m) => m.filteredDoses.length > 0);
+      .filter((m) => m.filteredDoses.length > 0); // remove meds with no doses after filtering
   }, [data.meds, medFilters]);
-
-  const filteredChartData = useMemo(() => {
-    if (!data.chartData.length) return [];
-    return data.chartData.map((d) => {
-      let taken = d.taken || 0;
-      let missed = d.missed || 0;
-      if (medFilters.status === "taken") missed = 0;
-      if (medFilters.status === "missed") taken = 0;
-      return { ...d, taken, missed };
-    });
-  }, [data.chartData, medFilters.status]);
 
   const filteredReports = useMemo(() => {
     return data.reports.filter((r) => {
@@ -216,7 +207,7 @@ export default function PatientDashboardPage() {
               {user.name ? `${user.name}'s Dashboard` : "Patient's Dashboard"}
             </h1>
             <span className="px-2 py-1 text-xs rounded bg-blue-200 text-blue-900">
-              PATIENT
+              {user.role.toUpperCase()}
             </span>
           </div>
           <div className="text-lg font-semibold text-blue-900">
@@ -226,6 +217,7 @@ export default function PatientDashboardPage() {
 
         {/* Filters & Buttons */}
         <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4 flex-wrap gap-4">
+          {/* Medication Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Medication Filters
@@ -261,6 +253,7 @@ export default function PatientDashboardPage() {
             </div>
           </div>
 
+          {/* Report Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Report Filters
@@ -288,16 +281,17 @@ export default function PatientDashboardPage() {
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div className="flex flex-col gap-2">
             <button
               onClick={clearFilters}
-              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition cursor-pointer"
+              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
             >
               Clear Filters
             </button>
             <button
-              onClick={goToMedications}
-              className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition cursor-pointer"
+              onClick={() => router.push(`/patients/${userId}/medications`)}
+              className="bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition"
             >
               Manage Medications
             </button>
@@ -317,10 +311,10 @@ export default function PatientDashboardPage() {
             <h2 className="font-semibold mb-2 text-blue-900">
               Adherence (last 7 days)
             </h2>
-            {filteredChartData.length ? (
+            {data.chartData.length ? (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart
-                  data={filteredChartData}
+                  data={data.chartData}
                   margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
@@ -371,59 +365,63 @@ export default function PatientDashboardPage() {
                     <div className="flex justify-between items-center">
                       <div className="font-semibold flex items-center gap-2">
                         {m.name}
+                        <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900">
+                          {m.role?.toUpperCase() || "PATIENT"}
+                        </span>
                       </div>
-                      {String(loggedInUser.id) === String(userId) && (
-                        <div>
-                          {m.showDeleteConfirm ? (
-                            <div className="flex gap-2 items-center">
-                              <span className="text-sm text-red-600">
-                                Confirm?
-                              </span>
-                              <button
-                                onClick={() => handleDeleteMedication(m._id)}
-                                className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 transition text-sm cursor-pointer"
-                              >
-                                Yes
-                              </button>
-                              <button
-                                onClick={() =>
-                                  setData((prev) => ({
-                                    ...prev,
-                                    meds: prev.meds.map((med) =>
-                                      med._id === m._id
-                                        ? { ...med, showDeleteConfirm: false }
-                                        : med
-                                    ),
-                                  }))
-                                }
-                                className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 transition text-sm cursor-pointer"
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
+
+                      {loggedInUser.role === "patient" &&
+                        loggedInUser.id === userId &&
+                        (m.showDeleteConfirm ? (
+                          <div className="flex gap-2 items-center">
+                            <span className="text-sm text-red-600">
+                              Confirm?
+                            </span>
+                            <button
+                              onClick={() => handleDeleteMedication(m._id)}
+                              className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 transition text-sm"
+                            >
+                              Yes
+                            </button>
                             <button
                               onClick={() =>
                                 setData((prev) => ({
                                   ...prev,
                                   meds: prev.meds.map((med) =>
                                     med._id === m._id
-                                      ? { ...med, showDeleteConfirm: true }
+                                      ? { ...med, showDeleteConfirm: false }
                                       : med
                                   ),
                                 }))
                               }
-                              className="text-red-600 hover:underline text-sm cursor-pointer transition"
+                              className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 transition text-sm"
                             >
-                              Delete
+                              No
                             </button>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setData((prev) => ({
+                                ...prev,
+                                meds: prev.meds.map((med) =>
+                                  med._id === m._id
+                                    ? { ...med, showDeleteConfirm: true }
+                                    : med
+                                ),
+                              }))
+                            }
+                            className="text-red-600 hover:underline text-sm transition"
+                          >
+                            Delete
+                          </button>
+                        ))}
                     </div>
+
                     <div className="text-sm text-gray-700 mb-2">
                       {m.dosage} {m.unit} ({m.type})
                     </div>
+
                     {m.filteredDoses.length ? (
                       <ul className="ml-4 list-disc text-gray-800">
                         {m.filteredDoses.map((d) => (
@@ -433,13 +431,20 @@ export default function PatientDashboardPage() {
                               onClick={() =>
                                 handleDoseToggle(m._id, d.doseId, d.taken)
                               }
+                              disabled={
+                                !(
+                                  (loggedInUser.role === "patient" &&
+                                    loggedInUser.id === userId) ||
+                                  loggedInUser.role === "family"
+                                )
+                              }
                               className={`font-semibold ${
                                 d.taken === true
                                   ? "text-green-600"
                                   : d.taken === false
                                   ? "text-red-600"
                                   : "text-gray-600"
-                              } transition cursor-pointer`}
+                              } transition`}
                             >
                               {d.taken === true
                                 ? "Taken"
@@ -481,20 +486,25 @@ export default function PatientDashboardPage() {
                           ? new Date(r.uploadedAt).toLocaleString()
                           : "N/A"}
                       </p>
+                      {r.role && (
+                        <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900 mt-1 w-max">
+                          {r.role.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <a
                         href={`/reports/view/${r._id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="underline text-blue-600 cursor-pointer"
+                        className="underline text-blue-600"
                       >
                         View
                       </a>
                       <a
                         href={r.fileUrl}
                         download
-                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition cursor-pointer"
+                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
                       >
                         Download
                       </a>

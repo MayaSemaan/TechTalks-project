@@ -12,18 +12,15 @@ export async function GET(req, { params }) {
     const { userId } = params;
     const { searchParams } = new URL(req.url);
 
-    // ------------------- Fetch logged-in user -------------------
+    // Fetch logged-in user
     let loggedInUser = null;
     try {
-      loggedInUser = await authenticate(req); // patient/doctor/family
+      loggedInUser = await authenticate(req); // returns full user object
     } catch {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      loggedInUser = { role: "guest" }; // if not logged in
     }
 
-    // ------------------- Fetch patient/user -------------------
+    // Fetch patient/user data
     const user = await User.findById(userId).select("name email role");
     if (!user)
       return NextResponse.json(
@@ -31,7 +28,7 @@ export async function GET(req, { params }) {
         { status: 404 }
       );
 
-    // ------------------- Medications -------------------
+    // ----------------------- Medication filters -----------------------
     const statusFilter = searchParams.get("status"); // "taken" | "missed" | ""
     const medFromDate = searchParams.get("fromDate");
     const medToDate = searchParams.get("toDate");
@@ -42,12 +39,15 @@ export async function GET(req, { params }) {
       .map((med) => {
         const filteredDoses = med.doses.filter((dose) => {
           const doseDate = new Date(dose.date);
+
           if (medFromDate && doseDate < new Date(`${medFromDate}T00:00:00Z`))
             return false;
           if (medToDate && doseDate > new Date(`${medToDate}T23:59:59Z`))
             return false;
+
           if (statusFilter === "taken" && dose.taken !== true) return false;
           if (statusFilter === "missed" && dose.taken !== false) return false;
+
           return true;
         });
 
@@ -86,7 +86,7 @@ export async function GET(req, { params }) {
       })
       .filter(Boolean);
 
-    // ------------------- Reports -------------------
+    // ----------------------- Reports filters -----------------------
     const reportFromDate = searchParams.get("reportFromDate");
     const reportToDate = searchParams.get("reportToDate");
 
@@ -99,22 +99,15 @@ export async function GET(req, { params }) {
         reportQuery.createdAt.$lte = new Date(`${reportToDate}T23:59:59Z`);
     }
 
-    const reportsRaw = await Report.find(reportQuery)
-      .sort({ createdAt: -1 })
-      .populate("doctor", "name email specialization");
-
+    const reportsRaw = await Report.find(reportQuery).sort({ createdAt: -1 });
     const reports = reportsRaw.map((r) => ({
-      reportId: r._id,
+      _id: r._id,
       title: r.title,
-      description: r.description,
       fileUrl: r.fileUrl,
-      uploadedAt: r.createdAt?.toISOString() || null,
-      doctorName: r.doctor?.name || "Unknown",
-      doctorEmail: r.doctor?.email || "",
-      doctorSpecialization: r.doctor?.specialization || "",
+      uploadedAt: r.createdAt ? r.createdAt.toISOString() : null,
     }));
 
-    // ------------------- Chart Data (last 7 days) -------------------
+    // ----------------------- Chart data (last 7 days) -----------------------
     const chartData = [];
     const end = new Date();
     const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
@@ -132,27 +125,25 @@ export async function GET(req, { params }) {
         date: dayStart.toISOString().split("T")[0],
         taken: dayCompliance.totalTaken || 0,
         missed: dayCompliance.totalMissed || 0,
-        pending: dayCompliance.totalPending || 0,
       });
 
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // ------------------- Metrics -------------------
+    // ----------------------- Metrics -----------------------
     const totalTaken = chartData.reduce((sum, d) => sum + d.taken, 0);
-    const totalExpected = chartData.reduce(
-      (sum, d) => sum + d.taken + d.missed + d.pending,
+    const totalDoses = chartData.reduce(
+      (sum, d) => sum + d.taken + d.missed,
       0
     );
-    const adherencePercent = totalExpected
-      ? Math.round((totalTaken / totalExpected) * 100)
+    const adherencePercent = totalDoses
+      ? Math.round((totalTaken / totalDoses) * 100)
       : 0;
 
-    // ------------------- Return -------------------
     return NextResponse.json({
       success: true,
-      user,
-      loggedInUser,
+      user, // patient being viewed
+      loggedInUser, // who is viewing
       medications: medicationsData,
       reports,
       chartData,
