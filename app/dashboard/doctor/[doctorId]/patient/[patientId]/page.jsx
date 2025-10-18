@@ -53,6 +53,19 @@ export default function DoctorPatientDashboardPage() {
   const [modalLoading, setModalLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [medFilters, setMedFilters] = useState({
+    status: "",
+    fromDate: "",
+    toDate: "",
+  });
+  const [reportFilters, setReportFilters] = useState({
+    fromDate: "",
+    toDate: "",
+  });
+
+  // ------------------------------
+  // Load dashboard data
+  // ------------------------------
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -60,7 +73,16 @@ export default function DoctorPatientDashboardPage() {
       const res = await fetchDashboardData(patientId);
       if (!res.success)
         throw new Error(res.error || "Failed to fetch dashboard");
-      setData(res);
+
+      const medsWithConfirm = (res.medications || []).map((m) => ({
+        ...m,
+        showDeleteConfirm: false,
+      }));
+
+      setData({
+        ...res,
+        medications: medsWithConfirm,
+      });
     } catch (err) {
       setError(err.message || "Failed to load dashboard");
     } finally {
@@ -72,59 +94,22 @@ export default function DoctorPatientDashboardPage() {
     loadData();
   }, [patientId]);
 
-  const handleSaveFromModal = async (payload) => {
-    setSaving(true);
-    try {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const method = editingMed?._id ? "PUT" : "POST";
-      const url = editingMed?._id
-        ? `/api/medications/${editingMed._id}`
-        : `/api/medications`;
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error(`Failed to save medication`);
-
-      const savedMed = await res.json(); // Expect backend to return the saved medication
-
-      // Update state directly without refreshing
-      setData((prev) => {
-        let updatedMeds = [...prev.medications];
-        if (editingMed?._id) {
-          // Edit case: replace the existing medication
-          updatedMeds = updatedMeds.map((m) =>
-            m._id === editingMed._id ? savedMed : m
-          );
-        } else {
-          // Add case: append new medication
-          updatedMeds.push(savedMed);
-        }
-
-        return { ...prev, medications: updatedMeds };
-      });
-
-      setModalOpen(false);
-      setEditingMed(null);
-    } catch (err) {
-      console.error(err);
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
+  // ------------------------------
+  // Clear filters
+  // ------------------------------
+  const clearFilters = () => {
+    setMedFilters({ status: "", fromDate: "", toDate: "" });
+    setReportFilters({ fromDate: "", toDate: "" });
   };
 
+  // ------------------------------
+  // Add/Edit Medication
+  // ------------------------------
   const handleAddMedication = () => {
     setEditingMed(null);
     setModalOpen(true);
   };
+
   const handleEditMedication = async (med) => {
     setModalLoading(true);
     try {
@@ -145,17 +130,99 @@ export default function DoctorPatientDashboardPage() {
     }
   };
 
-  const filteredMeds = useMemo(
-    () => data.medications || [],
-    [data.medications]
-  );
-  const filteredReports = useMemo(() => data.reports || [], [data.reports]);
+  const handleSaveFromModal = async (payload) => {
+    setSaving(true);
+    try {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const method = editingMed?._id ? "PUT" : "POST";
+      const url = editingMed?._id
+        ? `/api/medications/${editingMed._id}`
+        : `/api/medications`;
 
-  // Pie chart: Taken / Missed / Pending
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error("Failed to save medication");
+      const savedMed = await res.json();
+
+      setData((prev) => {
+        let updatedMeds = [...prev.medications];
+        if (editingMed?._id) {
+          updatedMeds = updatedMeds.map((m) =>
+            m._id === editingMed._id ? savedMed : m
+          );
+        } else {
+          updatedMeds.push(savedMed);
+        }
+        return { ...prev, medications: updatedMeds };
+      });
+
+      setModalOpen(false);
+      setEditingMed(null);
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ------------------------------
+  // Filtering medications & reports
+  // ------------------------------
+  const filteredMeds = useMemo(() => {
+    return (data.medications || [])
+      .map((m) => {
+        let doses = m.filteredDoses || [];
+
+        if (medFilters.fromDate)
+          doses = doses.filter(
+            (d) => new Date(d.date) >= new Date(medFilters.fromDate)
+          );
+        if (medFilters.toDate)
+          doses = doses.filter(
+            (d) => new Date(d.date) <= new Date(medFilters.toDate)
+          );
+
+        if (medFilters.status === "taken")
+          doses = doses.filter((d) => d.taken === true);
+        else if (medFilters.status === "missed")
+          doses = doses.filter((d) => d.taken === false);
+
+        return { ...m, filteredDoses: doses };
+      })
+      .filter((m) => m.filteredDoses.length > 0);
+  }, [data.medications, medFilters]);
+
+  const filteredReports = useMemo(() => {
+    return (data.reports || []).filter((r) => {
+      const uploadedAt = new Date(r.uploadedAt);
+      if (
+        reportFilters.fromDate &&
+        uploadedAt < new Date(reportFilters.fromDate)
+      )
+        return false;
+      if (reportFilters.toDate && uploadedAt > new Date(reportFilters.toDate))
+        return false;
+      return true;
+    });
+  }, [data.reports, reportFilters]);
+
+  // ------------------------------
+  // Adherence & pie chart
+  // ------------------------------
   const totalDoses = filteredMeds.flatMap((m) => m.filteredDoses || []);
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
   const totalPending = totalDoses.filter((d) => d.taken == null).length;
+
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
@@ -180,6 +247,46 @@ export default function DoctorPatientDashboardPage() {
             Add Medication
           </button>
         </header>
+
+        {/* Filters */}
+        <div className="flex flex-wrap justify-between items-center bg-white rounded-xl shadow-md p-4 gap-4">
+          {/* Medication Filters */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <select
+              value={medFilters.status}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, status: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            >
+              <option value="">All</option>
+              <option value="taken">Taken</option>
+              <option value="missed">Missed</option>
+            </select>
+            <input
+              type="date"
+              value={medFilters.fromDate}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, fromDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+            <input
+              type="date"
+              value={medFilters.toDate}
+              onChange={(e) =>
+                setMedFilters({ ...medFilters, toDate: e.target.value })
+              }
+              className="border rounded p-2 text-black"
+            />
+            <button
+              onClick={clearFilters}
+              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
 
         {/* Charts */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -220,9 +327,9 @@ export default function DoctorPatientDashboardPage() {
             <p className="text-gray-600">No medications found.</p>
           ) : (
             <ul className="space-y-4">
-              {filteredMeds.map((med, medIdx) => (
+              {filteredMeds.map((med) => (
                 <li
-                  key={med._id || medIdx}
+                  key={med._id}
                   className="border rounded p-4 bg-blue-50 space-y-2"
                 >
                   <div className="flex justify-between items-center">
@@ -249,17 +356,17 @@ export default function DoctorPatientDashboardPage() {
                       <ul className="ml-2 list-disc text-gray-800 text-sm">
                         {med.filteredDoses
                           ?.slice()
-                          .sort((a, b) => {
-                            const dateA = new Date(`${a.date} ${a.time}`);
-                            const dateB = new Date(`${b.date} ${b.time}`);
-                            return dateA - dateB;
-                          })
+                          .sort(
+                            (a, b) =>
+                              new Date(a.date + " " + a.time) -
+                              new Date(b.date + " " + b.time)
+                          )
                           .map((d, idx) => (
                             <li key={d.doseId || idx}>
                               {d.date
                                 ? new Date(d.date).toLocaleDateString()
                                 : "-"}{" "}
-                              {d.time} –
+                              {d.time} –{" "}
                               <span
                                 className={`font-semibold ${
                                   d.taken === true

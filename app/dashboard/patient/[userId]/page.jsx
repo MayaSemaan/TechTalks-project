@@ -98,6 +98,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
   }, [userId]);
+
   useEffect(() => {
     const handleFocus = () => loadData();
     window.addEventListener("focus", handleFocus);
@@ -148,7 +149,6 @@ export default function DashboardPage() {
       .map((m) => {
         let doses = m.filteredDoses || [];
 
-        // Apply date filters
         if (medFilters.fromDate)
           doses = doses.filter(
             (d) => new Date(d.date) >= new Date(medFilters.fromDate)
@@ -158,16 +158,14 @@ export default function DashboardPage() {
             (d) => new Date(d.date) <= new Date(medFilters.toDate)
           );
 
-        // Apply status filter (only taken or missed)
-        if (medFilters.status === "taken") {
+        if (medFilters.status === "taken")
           doses = doses.filter((d) => d.taken === true);
-        } else if (medFilters.status === "missed") {
+        else if (medFilters.status === "missed")
           doses = doses.filter((d) => d.taken === false);
-        }
 
         return { ...m, filteredDoses: doses };
       })
-      .filter((m) => m.filteredDoses.length > 0); // remove meds with no doses after filtering
+      .filter((m) => m.filteredDoses.length > 0);
   }, [data.meds, medFilters]);
 
   const filteredReports = useMemo(() => {
@@ -187,11 +185,14 @@ export default function DashboardPage() {
   const totalDoses = filteredMeds.flatMap((m) => m.filteredDoses || []);
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
+  const totalPending = totalDoses.filter(
+    (d) => d.taken === null || d.taken === undefined
+  ).length;
 
   const pieData = {
-    labels: ["Taken", "Missed"],
-    values: [totalTaken, totalMissed],
-    colors: ["#3b82f6", "#f97316"],
+    labels: ["Taken", "Missed", "Pending"],
+    values: [totalTaken, totalMissed, totalPending],
+    colors: ["#3b82f6", "#f97316", "#9ca3af"], // gray for pending
   };
 
   if (loading) return <div className="p-6">Loading...</div>;
@@ -303,6 +304,7 @@ export default function DashboardPage() {
           <div>Total Doses: {totalDoses.length}</div>
           <div>Taken: {totalTaken}</div>
           <div>Missed: {totalMissed}</div>
+          <div>Pending: {totalPending}</div>
         </div>
 
         {/* Charts */}
