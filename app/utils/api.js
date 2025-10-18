@@ -20,7 +20,7 @@ export async function fetchDashboardData(userId, filters = {}) {
 
     const res = await fetch(`/api/dashboard/${userId}?${params.toString()}`, {
       cache: "no-store",
-      credentials: "include", // ✅ include cookies for session auth
+      credentials: "include",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -28,7 +28,7 @@ export async function fetchDashboardData(userId, filters = {}) {
       let errData = {};
       try {
         const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
+        if (contentType?.includes("application/json")) {
           errData = await res.json();
         } else {
           errData.error = await res.text();
@@ -39,20 +39,41 @@ export async function fetchDashboardData(userId, filters = {}) {
       throw new Error(errData.error || `API error: ${res.status}`);
     }
 
-    let data = {};
-    try {
-      data = await res.json();
-    } catch {
-      data = {};
-    }
-
+    const data = await res.json().catch(() => ({}));
     const user = data.user || { role: "patient", _id: userId };
+
+    // 🩵 Fix medications with safe ISO dates
+    const parseDateSafe = (val) => {
+      if (!val) return null;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    };
+
+    const medications = (data.medications || []).map((m) => {
+      let frequency = m.schedule;
+      if (m.schedule === "custom" && m.customInterval) {
+        const number = m.customInterval.number || 1;
+        const unit = m.customInterval.unit || "day";
+        frequency = `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
+      }
+
+      return {
+        ...m,
+        frequency,
+        startDate: parseDateSafe(m.startDate),
+        endDate: parseDateSafe(m.endDate),
+        filteredDoses: (m.filteredDoses || []).map((d) => ({
+          ...d,
+          date: parseDateSafe(d.date),
+        })),
+      };
+    });
 
     return {
       success: true,
       user,
       loggedInUser: data.loggedInUser || { role: null, id: null },
-      medications: data.medications || [],
+      medications,
       reports: data.reports || [],
       chartData: data.chartData || [],
       metrics: data.metrics || {},
@@ -80,7 +101,7 @@ export async function updateDoseStatus(medId, doseId, taken) {
       let errData = {};
       try {
         const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
+        if (contentType?.includes("application/json")) {
           errData = await res.json();
         } else {
           errData.error = await res.text();
@@ -115,7 +136,7 @@ export async function deleteMedication(medId) {
       let errData = {};
       try {
         const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
+        if (contentType?.includes("application/json")) {
           errData = await res.json();
         } else {
           errData.error = await res.text();

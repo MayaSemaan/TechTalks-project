@@ -35,6 +35,28 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
   ssr: false,
 });
 
+// Safe date formatter
+const formatDate = (date) => {
+  if (!date || date === "null" || date === "undefined") return "N/A";
+
+  let d;
+
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, day] = date.split("-");
+    d = new Date(Number(y), Number(m) - 1, Number(day));
+  } else {
+    d = new Date(date);
+  }
+
+  if (!(d instanceof Date) || isNaN(d.getTime())) return "N/A";
+
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 export default function DoctorPatientDashboardPage() {
   const { doctorId, patientId } = useParams();
   const router = useRouter();
@@ -53,35 +75,21 @@ export default function DoctorPatientDashboardPage() {
   const [modalLoading, setModalLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [medFilters, setMedFilters] = useState({
-    status: "",
-    fromDate: "",
-    toDate: "",
-  });
-  const [reportFilters, setReportFilters] = useState({
-    fromDate: "",
-    toDate: "",
-  });
+  // New state for deleting reports
+  const [reportToDelete, setReportToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // ------------------------------
-  // Load dashboard data
-  // ------------------------------
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchDashboardData(patientId);
-      if (!res.success)
+      if (!res.success && !Array.isArray(res))
         throw new Error(res.error || "Failed to fetch dashboard");
-
-      const medsWithConfirm = (res.medications || []).map((m) => ({
-        ...m,
-        showDeleteConfirm: false,
-      }));
 
       setData({
         ...res,
-        medications: medsWithConfirm,
+        medications: Array.isArray(res) ? res : res.medications || [],
       });
     } catch (err) {
       setError(err.message || "Failed to load dashboard");
@@ -94,17 +102,43 @@ export default function DoctorPatientDashboardPage() {
     loadData();
   }, [patientId]);
 
-  // ------------------------------
-  // Clear filters
-  // ------------------------------
-  const clearFilters = () => {
-    setMedFilters({ status: "", fromDate: "", toDate: "" });
-    setReportFilters({ fromDate: "", toDate: "" });
+  const handleSaveFromModal = async (payload) => {
+    setSaving(true);
+    try {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+      const url = editingMed?._id
+        ? `/api/doctor/patient/${patientId}/medications/${editingMed._id}`
+        : `/api/doctor/patient/${patientId}/medications`;
+
+      const method = editingMed?._id ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save medication");
+      }
+
+      await loadData();
+      setModalOpen(false);
+      setEditingMed(null);
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // ------------------------------
-  // Add/Edit Medication
-  // ------------------------------
   const handleAddMedication = () => {
     setEditingMed(null);
     setModalOpen(true);
@@ -115,10 +149,19 @@ export default function DoctorPatientDashboardPage() {
     try {
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const res = await fetch(`/api/medications/${med._id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch medication");
+
+      const res = await fetch(
+        `/api/doctor/patient/${patientId}/medications/${med._id}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to fetch medication");
+      }
+
       const payload = await res.json();
       setEditingMed(payload.medication);
       setModalOpen(true);
@@ -130,95 +173,15 @@ export default function DoctorPatientDashboardPage() {
     }
   };
 
-  const handleSaveFromModal = async (payload) => {
-    setSaving(true);
-    try {
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const method = editingMed?._id ? "PUT" : "POST";
-      const url = editingMed?._id
-        ? `/api/medications/${editingMed._id}`
-        : `/api/medications`;
+  const filteredMeds = useMemo(
+    () => data.medications || [],
+    [data.medications]
+  );
+  const filteredReports = useMemo(() => data.reports || [], [data.reports]);
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Failed to save medication");
-      const savedMed = await res.json();
-
-      setData((prev) => {
-        let updatedMeds = [...prev.medications];
-        if (editingMed?._id) {
-          updatedMeds = updatedMeds.map((m) =>
-            m._id === editingMed._id ? savedMed : m
-          );
-        } else {
-          updatedMeds.push(savedMed);
-        }
-        return { ...prev, medications: updatedMeds };
-      });
-
-      setModalOpen(false);
-      setEditingMed(null);
-    } catch (err) {
-      console.error(err);
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ------------------------------
-  // Filtering medications & reports
-  // ------------------------------
-  const filteredMeds = useMemo(() => {
-    return (data.medications || [])
-      .map((m) => {
-        let doses = m.filteredDoses || [];
-
-        if (medFilters.fromDate)
-          doses = doses.filter(
-            (d) => new Date(d.date) >= new Date(medFilters.fromDate)
-          );
-        if (medFilters.toDate)
-          doses = doses.filter(
-            (d) => new Date(d.date) <= new Date(medFilters.toDate)
-          );
-
-        if (medFilters.status === "taken")
-          doses = doses.filter((d) => d.taken === true);
-        else if (medFilters.status === "missed")
-          doses = doses.filter((d) => d.taken === false);
-
-        return { ...m, filteredDoses: doses };
-      })
-      .filter((m) => m.filteredDoses.length > 0);
-  }, [data.medications, medFilters]);
-
-  const filteredReports = useMemo(() => {
-    return (data.reports || []).filter((r) => {
-      const uploadedAt = new Date(r.uploadedAt);
-      if (
-        reportFilters.fromDate &&
-        uploadedAt < new Date(reportFilters.fromDate)
-      )
-        return false;
-      if (reportFilters.toDate && uploadedAt > new Date(reportFilters.toDate))
-        return false;
-      return true;
-    });
-  }, [data.reports, reportFilters]);
-
-  // ------------------------------
-  // Adherence & pie chart
-  // ------------------------------
-  const totalDoses = filteredMeds.flatMap((m) => m.filteredDoses || []);
+  const totalDoses = filteredMeds
+    .flatMap((m) => m?.filteredDoses || [])
+    .filter(Boolean);
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
   const totalPending = totalDoses.filter((d) => d.taken == null).length;
@@ -238,7 +201,7 @@ export default function DoctorPatientDashboardPage() {
         {/* Header */}
         <header className="flex justify-between items-center">
           <h1 className="text-2xl font-bold text-blue-900">
-            {data.user?.name}'s Dashboard
+            {data.user?.name || "Patient"}'s Dashboard
           </h1>
           <button
             onClick={handleAddMedication}
@@ -247,46 +210,6 @@ export default function DoctorPatientDashboardPage() {
             Add Medication
           </button>
         </header>
-
-        {/* Filters */}
-        <div className="flex flex-wrap justify-between items-center bg-white rounded-xl shadow-md p-4 gap-4">
-          {/* Medication Filters */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <select
-              value={medFilters.status}
-              onChange={(e) =>
-                setMedFilters({ ...medFilters, status: e.target.value })
-              }
-              className="border rounded p-2 text-black"
-            >
-              <option value="">All</option>
-              <option value="taken">Taken</option>
-              <option value="missed">Missed</option>
-            </select>
-            <input
-              type="date"
-              value={medFilters.fromDate}
-              onChange={(e) =>
-                setMedFilters({ ...medFilters, fromDate: e.target.value })
-              }
-              className="border rounded p-2 text-black"
-            />
-            <input
-              type="date"
-              value={medFilters.toDate}
-              onChange={(e) =>
-                setMedFilters({ ...medFilters, toDate: e.target.value })
-              }
-              className="border rounded p-2 text-black"
-            />
-            <button
-              onClick={clearFilters}
-              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
-            >
-              Clear Filters
-            </button>
-          </div>
-        </div>
 
         {/* Charts */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -327,16 +250,34 @@ export default function DoctorPatientDashboardPage() {
             <p className="text-gray-600">No medications found.</p>
           ) : (
             <ul className="space-y-4">
-              {filteredMeds.map((med) => (
+              {filteredMeds.map((med, medIdx) => (
                 <li
-                  key={med._id}
+                  key={med._id || medIdx}
                   className="border rounded p-4 bg-blue-50 space-y-2"
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="font-semibold">{med.name}</p>
+                      <p className="font-semibold text-lg">{med.name}</p>
                       <p className="text-sm text-gray-700">
                         {med.dosage} {med.unit} ({med.type})
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        <span className="font-medium">Frequency:</span>{" "}
+                        {med.frequency || "N/A"}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Start Date:</span>{" "}
+                        {formatDate(
+                          med.startDate || med.filteredDoses?.[0]?.date || null
+                        )}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">End Date:</span>{" "}
+                        {formatDate(
+                          med.endDate ||
+                            med.filteredDoses?.slice(-1)[0]?.date ||
+                            null
+                        )}
                       </p>
                     </div>
                     <button
@@ -346,6 +287,7 @@ export default function DoctorPatientDashboardPage() {
                       Edit
                     </button>
                   </div>
+
                   <div className="ml-4">
                     <p className="font-semibold text-gray-800">Doses:</p>
                     {!med.filteredDoses?.length ? (
@@ -358,15 +300,12 @@ export default function DoctorPatientDashboardPage() {
                           ?.slice()
                           .sort(
                             (a, b) =>
-                              new Date(a.date + " " + a.time) -
-                              new Date(b.date + " " + b.time)
+                              new Date(`${a.date} ${a.time}`) -
+                              new Date(`${b.date} ${b.time}`)
                           )
                           .map((d, idx) => (
                             <li key={d.doseId || idx}>
-                              {d.date
-                                ? new Date(d.date).toLocaleDateString()
-                                : "-"}{" "}
-                              {d.time} –{" "}
+                              {formatDate(d.date)} {d.time || "-"} –{" "}
                               <span
                                 className={`font-semibold ${
                                   d.taken === true
@@ -414,13 +353,29 @@ export default function DoctorPatientDashboardPage() {
                         : "N/A"}
                     </p>
                   </div>
-                  <div>
+                  <div className="flex gap-2">
                     <a
                       href={`/reports/view/${r._id}?doctorId=${doctorId}&patientId=${patientId}`}
                       className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
                     >
                       View
                     </a>
+                    <button
+                      onClick={() =>
+                        router.push(
+                          `/reports/edit/${r._id}?doctorId=${doctorId}&patientId=${patientId}`
+                        )
+                      }
+                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setReportToDelete(r)}
+                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -439,7 +394,7 @@ export default function DoctorPatientDashboardPage() {
         </section>
       </div>
 
-      {/* Modal */}
+      {/* Medication Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-start overflow-auto z-50 p-4">
           <div className="bg-white w-full max-w-xl rounded-xl p-6 relative mt-16 md:mt-20 shadow-lg sm:mx-2">
@@ -469,6 +424,66 @@ export default function DoctorPatientDashboardPage() {
               />
             )}
             {saving && <p className="mt-3 text-sm text-gray-600">Saving...</p>}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Report Modal */}
+      {reportToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 p-4">
+          <div className="bg-white w-full max-w-md rounded-xl p-6 shadow-lg relative">
+            <button
+              onClick={() => !deleting && setReportToDelete(null)}
+              className="absolute top-3 right-3 text-gray-600 hover:text-gray-900 text-xl font-bold"
+            >
+              ×
+            </button>
+            <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
+            <p className="mb-4">
+              Are you sure you want to delete the report "{reportToDelete.title}
+              "?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setReportToDelete(null)}
+                disabled={deleting}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    const token =
+                      typeof window !== "undefined"
+                        ? localStorage.getItem("token")
+                        : null;
+                    const res = await fetch(
+                      `/api/reports/${reportToDelete._id}`,
+                      {
+                        method: "DELETE",
+                        headers: token
+                          ? { Authorization: `Bearer ${token}` }
+                          : {},
+                      }
+                    );
+                    if (!res.ok) throw new Error("Failed to delete report");
+                    await loadData();
+                    setReportToDelete(null);
+                  } catch (err) {
+                    console.error(err);
+                    alert(err.message);
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}

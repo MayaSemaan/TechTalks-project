@@ -6,6 +6,8 @@ import Report from "../../../../models/Report.js";
 import User from "../../../../models/User.js";
 import { authenticate } from "../../../../middlewares/auth.js";
 import { sendNotification } from "../../../utils/sendNotification.js";
+import fs from "fs";
+import path from "path";
 
 // ------------------------
 // GET a single report
@@ -49,9 +51,6 @@ export async function GET(req, { params }) {
   }
 }
 
-// ------------------------
-// PUT a report
-// ------------------------
 export async function PUT(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -61,14 +60,16 @@ export async function PUT(req, { params }) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const data = await req.json();
+    // Parse FormData from the request
+    const formData = await req.formData();
+    const title = formData.get("title");
+    const description = formData.get("description");
+    const file = formData.get("file"); // This is a File object
 
-    const report = await Report.findOneAndUpdate(
-      { _id: params.reportId, doctor: user._id },
-      data,
-      { new: true }
-    ).populate("doctor patient");
-
+    const report = await Report.findOne({
+      _id: params.reportId,
+      doctor: user._id,
+    });
     if (!report) {
       return NextResponse.json(
         { error: "Report not found or unauthorized" },
@@ -76,10 +77,39 @@ export async function PUT(req, { params }) {
       );
     }
 
+    if (title) report.title = title;
+    if (description) report.description = description;
+
+    // Handle PDF file upload
+    if (file && file.size > 0) {
+      const uploadsDir = path.join(process.cwd(), "public/uploads/reports");
+      if (!fs.existsSync(uploadsDir))
+        fs.mkdirSync(uploadsDir, { recursive: true });
+
+      const fileName = `${Date.now()}-${file.name}`;
+      const filePath = path.join(uploadsDir, fileName);
+
+      // Convert file to ArrayBuffer and save
+      const arrayBuffer = await file.arrayBuffer();
+      fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+      // Delete old file if exists
+      if (report.filePath) {
+        const oldFilePath = path.join(process.cwd(), "public", report.filePath);
+        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+      }
+
+      report.filePath = `/uploads/reports/${fileName}`;
+      report.fileName = file.name;
+    }
+
+    await report.save();
+    await report.populate("doctor patient");
+
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3000";
     const reportLink = `${baseUrl}/reports/view/${report._id}`;
 
-    // Notify doctor
+    // Notifications (doctor, patient, family)
     if (report.doctor?.email) {
       try {
         await sendNotification(
@@ -94,7 +124,6 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // Notify patient
     if (report.patient?.email) {
       try {
         await sendNotification(
@@ -109,7 +138,7 @@ export async function PUT(req, { params }) {
       }
     }
 
-    // ✅ Notify linked family members (same logic as in POST route)
+    // Notify linked family members
     try {
       const familyMembers = await User.find({
         role: "family",
@@ -141,6 +170,7 @@ export async function PUT(req, { params }) {
       );
     }
 
+    // ✅ Return updated report with fileName
     return NextResponse.json(report);
   } catch (err) {
     console.error("PUT /api/reports/[reportId] error:", err);
