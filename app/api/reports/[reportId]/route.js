@@ -100,6 +100,7 @@ export async function PUT(req, { params }) {
       }
 
       report.filePath = `/uploads/reports/${fileName}`;
+      report.fileUrl = `/uploads/reports/${fileName}`; // ✅ ensure consistency
       report.fileName = file.name;
     }
 

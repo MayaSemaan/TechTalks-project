@@ -9,19 +9,21 @@ export default function ReportForm({ initialData, onSave, onCancel, saving }) {
   );
   const [pdfFile, setPdfFile] = useState(null);
   const [currentFileName, setCurrentFileName] = useState(
-    initialData?.fileName || ""
+    initialData?.fileName || initialData?.fileUrl?.split("/").pop() || ""
   );
 
   useEffect(() => {
     setTitle(initialData?.title || "");
     setDescription(initialData?.description || "");
-    setCurrentFileName(initialData?.fileName || "");
+    setCurrentFileName(
+      initialData?.fileName || initialData?.fileUrl?.split("/").pop() || ""
+    );
     setPdfFile(null);
   }, [initialData]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    setPdfFile(file);
+    setPdfFile(file || null);
     setCurrentFileName(file ? file.name : initialData?.fileName || "");
   };
 
@@ -42,6 +44,7 @@ export default function ReportForm({ initialData, onSave, onCancel, saving }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Title */}
       <div>
         <label className="block font-semibold mb-1">Title</label>
         <input
@@ -53,6 +56,7 @@ export default function ReportForm({ initialData, onSave, onCancel, saving }) {
         />
       </div>
 
+      {/* Description */}
       <div>
         <label className="block font-semibold mb-1">Description</label>
         <textarea
@@ -64,29 +68,40 @@ export default function ReportForm({ initialData, onSave, onCancel, saving }) {
         />
       </div>
 
+      {/* PDF Upload */}
       <div>
         <label className="block font-semibold mb-1">PDF File</label>
         <input
           type="file"
           accept="application/pdf"
           onChange={handleFileChange}
+          className="mb-2"
         />
-        {currentFileName && (
-          <p className="text-sm text-gray-600 mt-1">
-            Current file: {currentFileName}{" "}
-            {!pdfFile && initialData?.fileUrl && (
-              <a
-                href={initialData.fileUrl}
-                target="_blank"
-                className="text-blue-500 underline ml-2"
-              >
-                View PDF
-              </a>
-            )}
+
+        {/* Show current file info */}
+        {!pdfFile && initialData?.fileUrl && currentFileName && (
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>Current file:</span>
+            <a
+              href={`${initialData.fileUrl}?t=${new Date().getTime()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-800"
+            >
+              {currentFileName}
+            </a>
+          </div>
+        )}
+
+        {/* Show new file name after selecting */}
+        {pdfFile && (
+          <p className="text-sm text-green-600 mt-1">
+            New file selected: {pdfFile.name}
           </p>
         )}
       </div>
 
+      {/* Buttons */}
       <div className="flex gap-2">
         <button
           type="submit"

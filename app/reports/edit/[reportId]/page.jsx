@@ -23,12 +23,12 @@ export default function EditReportPage() {
       });
       if (!res.ok) throw new Error("Failed to fetch report");
       const data = await res.json();
-
       setReport({
         ...data,
         fileName:
-          data.fileName || (data.fileUrl ? data.fileUrl.split("/").pop() : ""),
-        fileUrl: data.fileUrl || null,
+          data.fileName ||
+          (data.filePath ? data.filePath.split("/").pop() : ""),
+        filePath: data.filePath || null,
       });
     } catch (err) {
       console.error(err);
@@ -58,13 +58,16 @@ export default function EditReportPage() {
       }
 
       const updatedReport = await res.json();
-
       setReport({
         ...updatedReport,
-        fileName: updatedReport.fileName || "Existing PDF",
+        fileName:
+          updatedReport.fileName ||
+          updatedReport.fileUrl?.split("/").pop() ||
+          "",
         fileUrl: updatedReport.fileUrl || updatedReport.filePath || null,
       });
 
+      // Go back to patient dashboard without refreshing
       if (updatedReport.doctor?._id && updatedReport.patient?._id) {
         router.push(
           `/dashboard/doctor/${updatedReport.doctor._id}/patient/${updatedReport.patient._id}`

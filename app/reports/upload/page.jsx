@@ -8,52 +8,61 @@ export default function UploadReportPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const patientId = searchParams.get("patientId");
-  const doctorId = searchParams.get("doctorId"); // for back button
+  const doctorId = searchParams.get("doctorId");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState(null);
   const [checkingRole, setCheckingRole] = useState(true);
   const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState(""); // NEW: error box
+  const [errorMessage, setErrorMessage] = useState("");
+  const [reports, setReports] = useState([]);
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
 
   // Check logged-in user role
   useEffect(() => {
     const checkDoctor = async () => {
       const token = localStorage.getItem("token");
-      if (!token) {
-        router.push("/login");
-        return;
-      }
+      if (!token) return router.push("/login");
 
       try {
         const res = await axios.get(`${base}/api/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (res.data.role !== "doctor") {
-          router.push("/"); // redirect non-doctors
-          return;
-        }
-      } catch (err) {
-        console.error(err);
+        if (res.data.role !== "doctor") router.push("/");
+      } catch {
         router.push("/login");
       } finally {
         setCheckingRole(false);
       }
     };
-
     checkDoctor();
   }, [base, router]);
 
+  // Fetch reports
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(
+          `${base}/api/reports/patient/${patientId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        setReports(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    if (patientId) fetchReports();
+  }, [patientId, base]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!title || !patientId || !file) {
-      setErrorMessage("All fields are required.");
-      setTimeout(() => setErrorMessage(""), 3000);
-      return;
+    if (!title || !file) {
+      setErrorMessage("Title and file are required.");
+      return setTimeout(() => setErrorMessage(""), 3000);
     }
 
     try {
@@ -66,20 +75,20 @@ export default function UploadReportPage() {
       formData.append("patient", patientId);
       formData.append("file", file);
 
-      await axios.post(`${base}/api/reports`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const res = await axios.post(`${base}/api/reports`, formData, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      // ✅ Immediately add new report
+      setReports((prev) => [res.data, ...prev]);
 
       setSuccessMessage("Report uploaded successfully!");
       setTitle("");
       setDescription("");
       setFile(null);
-
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
-      console.error("Upload failed:", err);
+      console.error(err);
       setErrorMessage(err.response?.data?.error || err.message);
       setTimeout(() => setErrorMessage(""), 3000);
     }
@@ -90,13 +99,12 @@ export default function UploadReportPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-8 relative">
-        {/* Back Button */}
         <button
           onClick={() => {
             if (doctorId && patientId) {
               router.push(`/dashboard/doctor/${doctorId}/patient/${patientId}`);
             } else {
-              router.push("/dashboard"); // fallback
+              router.push("/dashboard");
             }
           }}
           className="mb-4 bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400 transition"
@@ -145,7 +153,7 @@ export default function UploadReportPage() {
           </button>
         </form>
 
-        {/* Error Message Box */}
+        {/* Messages */}
         {errorMessage && (
           <div className="absolute inset-0 flex justify-center items-center">
             <div className="bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg text-center animate-fadeIn">
@@ -153,8 +161,6 @@ export default function UploadReportPage() {
             </div>
           </div>
         )}
-
-        {/* Success Message Box */}
         {successMessage && (
           <div className="absolute inset-0 flex justify-center items-center">
             <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg text-center animate-fadeIn">
@@ -162,6 +168,25 @@ export default function UploadReportPage() {
             </div>
           </div>
         )}
+
+        {/* Reports List */}
+        <div className="mt-8 space-y-4">
+          {reports.map((r) => (
+            <div key={r._id} className="border p-4 rounded-lg bg-gray-50">
+              <h2 className="font-bold">{r.title}</h2>
+              <p>{r.description}</p>
+              {r.filePath && (
+                <a
+                  href={`${r.filePath}?t=${new Date().getTime()}`}
+                  target="_blank"
+                  className="text-blue-600 hover:underline"
+                >
+                  View File
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       <style jsx>{`

@@ -1,9 +1,10 @@
 {
   "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/api/reports/[reportId]/route": "app/api/reports/[reportId]/route.js",
+  "/api/doctor/patient/[patientId]/medications/[medId]/route": "app/api/doctor/patient/[patientId]/medications/[medId]/route.js",
+  "/dashboard/doctor/[doctorId]/page": "app/dashboard/doctor/[doctorId]/page.js",
   "/dashboard/doctor/[doctorId]/patient/[patientId]/page": "app/dashboard/doctor/[doctorId]/patient/[patientId]/page.js",
-  "/reports/view/[reportId]/page": "app/reports/view/[reportId]/page.js",
   "/reports/edit/[reportId]/page": "app/reports/edit/[reportId]/page.js",
-  "/dashboard/patient/[userId]/page": "app/dashboard/patient/[userId]/page.js"
+  "/reports/view/[reportId]/page": "app/reports/view/[reportId]/page.js",
+  "/reports/upload/page": "app/reports/upload/page.js"
 }

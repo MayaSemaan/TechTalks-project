@@ -14,7 +14,11 @@ const ReportSchema = new mongoose.Schema(
     },
     title: { type: String, required: true },
     description: { type: String, required: true },
-    fileUrl: { type: String }, // optional
+
+    // ✅ add these fields:
+    fileUrl: { type: String },
+    filePath: { type: String },
+    fileName: { type: String },
   },
   { timestamps: true }
 );
