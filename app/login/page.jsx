@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Link from "next/link";
 
 export default function Login() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || null;
-
   const [form, setForm] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
+  // Pre-fill email from previous login (optional)
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("savedEmail");
+    if (savedEmail) {
+      setForm((prev) => ({ ...prev, email: savedEmail }));
+      setRememberMe(true);
+      passwordRef.current?.focus(); // trigger browser auto-fill
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,13 +34,28 @@ export default function Login() {
       const res = await axios.post("/api/login", form);
 
       if (res.data.token && res.data.user?._id) {
-        // ✅ Store safely in localStorage
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("userId", res.data.user._id);
-        localStorage.setItem("role", res.data.user.role || "patient");
+        const { role, _id, email } = res.data.user;
 
-        // ✅ Use window.location.href to force reload dashboard
-        window.location.href = redirect || `/dashboard/${res.data.user._id}`;
+        // Save token and user info
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("userId", _id);
+        localStorage.setItem("role", role || "patient");
+
+        // Save email for pre-fill next time
+        if (rememberMe) {
+          localStorage.setItem("savedEmail", email);
+        } else {
+          localStorage.removeItem("savedEmail");
+        }
+
+        // ✅ Redirect based on role
+        if (role === "doctor") {
+          window.location.href = `/assign/doctor`;
+        } else if (role === "family") {
+          window.location.href = `/assign/family`;
+        } else {
+          window.location.href = `/dashboard/patient/${_id}`;
+        }
       } else {
         setError("Login failed: invalid response from server.");
       }
@@ -51,25 +74,40 @@ export default function Login() {
 
         {error && <p className="text-red-600 text-center mb-4">{error}</p>}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit} autoComplete="on">
           <input
             type="email"
             name="email"
+            ref={emailRef}
             value={form.email}
             onChange={handleChange}
             placeholder="Email"
             required
+            autoComplete="email"
             className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           />
           <input
             type="password"
             name="password"
+            ref={passwordRef}
             value={form.password}
             onChange={handleChange}
             placeholder="Password"
             required
+            autoComplete="current-password"
             className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-400"
           />
+
+          <label className="flex items-center gap-2 text-gray-700">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4"
+            />
+            Remember Me
+          </label>
+
           <button
             type="submit"
             className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition"

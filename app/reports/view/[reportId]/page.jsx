@@ -5,6 +5,20 @@ import axios from "axios";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import jwt_decode from "jwt-decode";
 
+// Safe date formatter
+const formatDate = (date) => {
+  if (!date || date === "null" || date === "undefined") return "N/A";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (!(d instanceof Date) || isNaN(d.getTime())) return "N/A";
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export default function SingleReportPage() {
   const { reportId } = useParams();
   const router = useRouter();
@@ -30,10 +44,11 @@ export default function SingleReportPage() {
           return;
         }
 
-        const res = await axios.get(`${base}/api/reports/${reportId}`, {
+        const res = await axios.get(`${base}/api/reports/view/${reportId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        // API now returns the report directly
         setReport(res.data);
       } catch (err) {
         console.error("Failed to fetch report:", err);
@@ -54,19 +69,16 @@ export default function SingleReportPage() {
 
   // Back to Dashboard button
   const handleBack = () => {
-    if (typeof window === "undefined") return;
-
     const token = localStorage.getItem("token");
     if (!token) {
       router.replace("/login");
       return;
     }
 
-    // Check if doctor came from a patient dashboard
     const fromDoctorId = searchParams.get("doctorId");
     const fromPatientId = searchParams.get("patientId");
+    const fromFamilyId = searchParams.get("familyId");
 
-    // If both are present → doctor viewing a patient's report
     if (fromDoctorId && fromPatientId) {
       router.replace(
         `/dashboard/doctor/${fromDoctorId}/patient/${fromPatientId}`
@@ -74,16 +86,17 @@ export default function SingleReportPage() {
       return;
     }
 
-    // Otherwise, go back based on logged-in role
+    if (fromFamilyId && fromPatientId) {
+      router.replace(
+        `/dashboard/family/${fromFamilyId}/patient/${fromPatientId}`
+      );
+      return;
+    }
+
     try {
       const decoded = jwt_decode(token);
       const role = decoded.role;
       const userId = decoded.id || decoded._id;
-
-      if (!userId) {
-        router.replace("/dashboard");
-        return;
-      }
 
       switch (role) {
         case "doctor":
@@ -98,8 +111,7 @@ export default function SingleReportPage() {
         default:
           router.replace("/dashboard");
       }
-    } catch (err) {
-      console.error("Failed to decode token:", err);
+    } catch {
       router.replace("/dashboard");
     }
   };
@@ -125,9 +137,6 @@ export default function SingleReportPage() {
       </div>
     );
 
-  const date = report.createdAt || report.uploadedAt || null;
-  const formattedDate = date ? new Date(date).toLocaleString() : "Unknown";
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 py-10 px-6">
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-8 border border-blue-200 relative">
@@ -139,22 +148,24 @@ export default function SingleReportPage() {
         </button>
 
         <h1 className="text-3xl font-bold text-blue-900 mb-4">
-          {report.title}
+          {report.title || "Untitled Report"}
         </h1>
-        <p className="text-gray-700 mb-6">{report.description}</p>
+        <p className="text-gray-700 mb-6">
+          {report.description || "No description"}
+        </p>
 
         <div className="space-y-3 text-gray-600">
           <p>
             <span className="font-semibold text-blue-800">Doctor:</span>{" "}
-            {report.doctor?.name || "Unknown"}
+            {report.doctor?.name || "N/A"}
           </p>
           <p>
             <span className="font-semibold text-blue-800">Patient:</span>{" "}
-            {report.patient?.name || "Unknown"}
+            {report.patient?.name || "N/A"}
           </p>
           <p>
             <span className="font-semibold text-blue-800">Date:</span>{" "}
-            {formattedDate}
+            {formatDate(report.createdAt || report.uploadedAt || report.date)}
           </p>
         </div>
 

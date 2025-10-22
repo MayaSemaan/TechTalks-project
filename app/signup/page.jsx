@@ -28,7 +28,6 @@ export default function Signup() {
     setError("");
     setSuccessMsg("");
 
-    // Frontend validations
     if (!validateEmail(form.email)) {
       setError("Please enter a valid email address.");
       return;
@@ -39,10 +38,28 @@ export default function Signup() {
     }
 
     try {
-      // ✅ Correct API path
-      await axios.post("/api/register", form);
-      setSuccessMsg("Signup successful, redirecting to login...");
-      setTimeout(() => router.push("/login"), 2000);
+      const res = await axios.post("/api/register", form);
+
+      // Auto-login after signup
+      const loginRes = await axios.post("/api/login", {
+        email: form.email,
+        password: form.password,
+      });
+
+      const { role, _id } = loginRes.data.user;
+
+      localStorage.setItem("token", loginRes.data.token);
+      localStorage.setItem("userId", _id);
+      localStorage.setItem("role", role || "patient");
+
+      // ✅ Redirect based on role
+      if (role === "doctor") {
+        window.location.href = `/assign/doctor`;
+      } else if (role === "family") {
+        window.location.href = `/assign/family`;
+      } else {
+        window.location.href = `/dashboard/patient/${_id}`;
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Error during signup.");
     }

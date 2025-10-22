@@ -17,9 +17,12 @@ export async function POST(req) {
     if (!match)
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+    // ✅ Include role in JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET
+    );
 
-    // ✅ Return role explicitly
     return NextResponse.json({ user, token }, { status: 200 });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

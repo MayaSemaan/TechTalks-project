@@ -66,6 +66,7 @@ export default function DashboardPage() {
     toDate: "",
   });
 
+  // --- LOAD DASHBOARD DATA ---
   const loadData = async () => {
     if (!userId) return;
     setLoading(true);
@@ -77,6 +78,7 @@ export default function DashboardPage() {
       setUser(result.user);
       setLoggedInUser(result.loggedInUser || { role: "patient", id: null });
 
+      // Ensure showDeleteConfirm exists
       const medsWithConfirm = (result.medications || []).map((m) => ({
         ...m,
         showDeleteConfirm: false,
@@ -99,6 +101,7 @@ export default function DashboardPage() {
     loadData();
   }, [userId]);
 
+  // Refresh on window focus
   useEffect(() => {
     const handleFocus = () => loadData();
     window.addEventListener("focus", handleFocus);
@@ -110,28 +113,17 @@ export default function DashboardPage() {
     setReportFilters({ fromDate: "", toDate: "" });
   };
 
-  const goToMedications = () => router.push("/medications");
-
+  // --- TOGGLE DOSE STATUS ---
   const handleDoseToggle = async (medId, doseId, currentStatus) => {
     const newStatus = currentStatus === true ? false : true;
     const result = await updateDoseStatus(medId, doseId, newStatus);
     if (result.success) {
-      setData((prev) => ({
-        ...prev,
-        meds: prev.meds.map((med) =>
-          med._id === medId
-            ? {
-                ...med,
-                filteredDoses: (med.filteredDoses || []).map((d) =>
-                  d.doseId === doseId ? { ...d, taken: newStatus } : d
-                ),
-              }
-            : med
-        ),
-      }));
+      // Reload all meds to ensure new doses appear correctly
+      await loadData();
     }
   };
 
+  // --- DELETE MEDICATION ---
   const handleDeleteMedication = async (medId) => {
     if (!(loggedInUser.role === "patient" && loggedInUser.id === userId))
       return;
@@ -144,28 +136,27 @@ export default function DashboardPage() {
     }
   };
 
+  // --- FILTERED MEDS ---
   const filteredMeds = useMemo(() => {
-    return data.meds
-      .map((m) => {
-        let doses = m.filteredDoses || [];
+    return data.meds.map((m) => {
+      let doses = m.filteredDoses || [];
 
-        if (medFilters.fromDate)
-          doses = doses.filter(
-            (d) => new Date(d.date) >= new Date(medFilters.fromDate)
-          );
-        if (medFilters.toDate)
-          doses = doses.filter(
-            (d) => new Date(d.date) <= new Date(medFilters.toDate)
-          );
+      if (medFilters.fromDate)
+        doses = doses.filter(
+          (d) => new Date(d.date) >= new Date(medFilters.fromDate)
+        );
+      if (medFilters.toDate)
+        doses = doses.filter(
+          (d) => new Date(d.date) <= new Date(medFilters.toDate)
+        );
 
-        if (medFilters.status === "taken")
-          doses = doses.filter((d) => d.taken === true);
-        else if (medFilters.status === "missed")
-          doses = doses.filter((d) => d.taken === false);
+      if (medFilters.status === "taken")
+        doses = doses.filter((d) => d.taken === true);
+      else if (medFilters.status === "missed")
+        doses = doses.filter((d) => d.taken === false);
 
-        return { ...m, filteredDoses: doses };
-      })
-      .filter((m) => m.filteredDoses.length > 0);
+      return { ...m, filteredDoses: doses };
+    });
   }, [data.meds, medFilters]);
 
   const filteredReports = useMemo(() => {
@@ -182,6 +173,7 @@ export default function DashboardPage() {
     });
   }, [data.reports, reportFilters]);
 
+  // --- PIE CHART DATA ---
   const totalDoses = filteredMeds.flatMap((m) => m.filteredDoses || []);
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
@@ -192,7 +184,7 @@ export default function DashboardPage() {
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
-    colors: ["#3b82f6", "#f97316", "#9ca3af"], // gray for pending
+    colors: ["#3b82f6", "#f97316", "#9ca3af"],
   };
 
   if (loading) return <div className="p-6">Loading...</div>;
