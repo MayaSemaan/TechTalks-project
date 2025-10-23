@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import jwtDecode from "jwt-decode";
 
@@ -25,26 +24,28 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
     return isNaN(d) ? "" : d.toISOString().split("T")[0];
   };
 
-  const medData = { ...defaultMed, ...initialData };
-
-  const [name, setName] = useState(medData.name);
-  const [dosage, setDosage] = useState(medData.dosage);
-  const [unit, setUnit] = useState(medData.unit);
-  const [type, setType] = useState(medData.type);
-  const [schedule, setSchedule] = useState(medData.schedule);
+  const [name, setName] = useState(initialData?.name || defaultMed.name);
+  const [dosage, setDosage] = useState(
+    initialData?.dosage || defaultMed.dosage
+  );
+  const [unit, setUnit] = useState(initialData?.unit || defaultMed.unit);
+  const [type, setType] = useState(initialData?.type || defaultMed.type);
+  const [schedule, setSchedule] = useState(
+    initialData?.schedule || defaultMed.schedule
+  );
   const [customInterval, setCustomInterval] = useState(
-    medData.customInterval || { number: 1, unit: "day" }
+    initialData?.customInterval || defaultMed.customInterval
   );
   const [times, setTimes] = useState(
-    Array.isArray(medData.times) ? medData.times : []
+    Array.isArray(initialData?.times) ? initialData.times : []
   );
   const [newTime, setNewTime] = useState("");
   const [startDate, setStartDate] = useState(
-    formatDateInput(medData.startDate)
+    formatDateInput(initialData?.startDate)
   );
-  const [endDate, setEndDate] = useState(formatDateInput(medData.endDate));
-  const [notes, setNotes] = useState(medData.notes || "");
-  const [reminders, setReminders] = useState(Boolean(medData.reminders));
+  const [endDate, setEndDate] = useState(formatDateInput(initialData?.endDate));
+  const [notes, setNotes] = useState(initialData?.notes || defaultMed.notes);
+  const [reminders, setReminders] = useState(Boolean(initialData?.reminders));
   const [timeError, setTimeError] = useState(false);
   const [dosageError, setDosageError] = useState(false);
 
@@ -53,17 +54,9 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
   const scheduleOptions = ["daily", "weekly", "monthly", "custom"];
   const intervalUnits = ["day", "week", "month"];
 
-  // ← NEW: auto-hide dosage error when changed to > 0
+  // Reset custom interval if schedule is not custom
   useEffect(() => {
-    if (Number(dosage) > 0 && dosageError) {
-      setDosageError(false);
-    }
-  }, [dosage, dosageError]);
-
-  useEffect(() => {
-    if (schedule !== "custom") {
-      setCustomInterval({ number: 1, unit: "day" });
-    }
+    if (schedule !== "custom") setCustomInterval({ number: 1, unit: "day" });
   }, [schedule]);
 
   const addTime = () => {
@@ -76,57 +69,60 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
 
   const removeTime = (t) => setTimes(times.filter((time) => time !== t));
 
+  const computeFrequency = (schedule, customInterval) => {
+    if (schedule === "custom" && customInterval) {
+      const number = Number(customInterval.number) || 1;
+      const unit = customInterval.unit || "day";
+      return `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
+    }
+    return schedule || "daily";
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
     if (Number(dosage) <= 0) {
       setDosageError(true);
       return;
-    } else {
-      setDosageError(false);
     }
-
     if (!startDate || !endDate) {
       alert("Please choose both start and end dates.");
       return;
     }
-
     if (endDate < startDate) {
       alert("End date cannot be before start date.");
       return;
     }
-
     if (times.length === 0) {
       setTimeError(true);
       return;
     }
 
-    let userId = null;
-    const token = localStorage.getItem("token");
-    if (token) {
+    let userId = initialData?.userId || null;
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (token && !userId) {
       try {
         const decoded = jwtDecode(token);
-        userId = decoded.id || decoded._id;
+        userId = decoded.id || decoded._id || userId;
       } catch {}
     }
-    if (initialData?.userId) userId = initialData.userId;
 
     const existingDoses = Array.isArray(initialData?.doses)
       ? initialData.doses
       : [];
-
-    const doses = times.map((time) => {
-      const existing = existingDoses.find((d) => d.time === time);
-      return {
-        time,
-        taken: existing?.taken ?? null,
-        date:
-          existing?.date ??
-          (startDate
-            ? new Date(startDate).toISOString()
-            : new Date().toISOString()),
-      };
-    });
+    const doses = times.map((time) => ({
+      doseId:
+        existingDoses.find((d) => d.time === time)?.doseId ||
+        (typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `temp-${time}-${Math.random().toString(36).slice(2, 8)}`),
+      time,
+      taken: null,
+      date: startDate
+        ? new Date(startDate).toISOString()
+        : new Date().toISOString(),
+    }));
 
     const payload = {
       name: name || "Unnamed Medication",
@@ -141,14 +137,17 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
       reminders: Boolean(reminders),
       userId,
       doses,
+      customInterval:
+        schedule === "custom"
+          ? {
+              number: Number(customInterval.number) || 1,
+              unit: customInterval.unit || "day",
+            }
+          : null,
     };
 
-    if (schedule === "custom") {
-      payload.customInterval = {
-        number: Number(customInterval.number) || 1,
-        unit: customInterval.unit || "day",
-      };
-    }
+    // Compute frequency immediately
+    payload.frequency = computeFrequency(schedule, payload.customInterval);
 
     onSave(payload);
   };
@@ -283,7 +282,7 @@ export default function MedicationForm({ onSave, onCancel, initialData }) {
         </div>
         {timeError && (
           <p className="text-red-500 text-sm mt-1">
-            Please add at least one time for the medication.
+            Please add at least one time.
           </p>
         )}
       </div>

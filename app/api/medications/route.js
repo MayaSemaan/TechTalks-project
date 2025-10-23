@@ -5,14 +5,14 @@ import User from "../../../models/User.js";
 import { authenticate } from "../../../middlewares/auth.js";
 import crypto from "crypto";
 
-// Safe date parser
+// --- Safe date parser ---
 const parseDateSafe = (val) => {
   if (!val) return null;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 };
 
-// Utility: validate medication fields before saving
+// --- Validate medication input ---
 function validateMedicationData(data) {
   if (!data.name || typeof data.name !== "string" || data.name.trim() === "")
     throw new Error("Invalid medication name");
@@ -26,7 +26,7 @@ function validateMedicationData(data) {
   });
 }
 
-// GET all medications
+// --- GET all medications ---
 export async function GET(req) {
   try {
     const user = await authenticate(req);
@@ -44,51 +44,53 @@ export async function GET(req) {
       });
     }
 
-    return NextResponse.json(
-      meds.map((m) => ({
+    const todayStr = new Date().toDateString();
+    const result = meds.map((m) => {
+      const dosesToday = (m.doses || [])
+        .filter((d) => new Date(d.date).toDateString() === todayStr)
+        .map((d) => ({
+          doseId: d.doseId,
+          time: d.time,
+          taken:
+            d.taken === true
+              ? "taken"
+              : d.taken === false
+              ? "missed"
+              : "pending",
+          date: d.date,
+        }));
+
+      return {
         ...m.toObject(),
         startDate: m.startDate?.toISOString() || null,
         endDate: m.endDate?.toISOString() || null,
         reminders: !!m.reminders,
-        doses: (m.times || []).map((t) => {
-          const dose = m.doses.find((d) => d.time === t) || {};
-          const status =
-            dose.taken === true
-              ? "taken"
-              : dose.taken === false
-              ? "missed"
-              : "pending";
-          return {
-            doseId: dose.doseId,
-            time: t,
-            taken: status,
-            date: dose.date || null,
-          };
-        }),
-      }))
-    );
+        doses: dosesToday,
+      };
+    });
+
+    return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 401 });
   }
 }
 
-// POST new medication
+// --- POST: add new medication ---
 export async function POST(req) {
   try {
     const user = await authenticate(req);
     await connectToDB();
-
     const data = await req.json();
-
     validateMedicationData(data);
 
     if (user.role === "family") {
       const linkedIds = user.linkedFamily.map((id) => id.toString());
-      if (!data.userId || !linkedIds.includes(data.userId))
+      if (!data.userId || !linkedIds.includes(data.userId)) {
         return NextResponse.json(
           { error: "Unauthorized or invalid userId" },
           { status: 403 }
         );
+      }
     }
 
     const userExists = await User.findById(data.userId || user._id);
@@ -100,11 +102,13 @@ export async function POST(req) {
         ? data.customInterval || { number: 1, unit: "day" }
         : undefined;
 
-    const doses = (Array.isArray(data.times) ? data.times : []).map((time) => ({
+    // --- Generate initial doses for startDate only ---
+    const startDate = parseDateSafe(data.startDate) || new Date();
+    const doses = data.times.map((time) => ({
       doseId: crypto.randomUUID(),
       time,
       taken: null,
-      date: parseDateSafe(data.startDate) || new Date(),
+      date: startDate,
     }));
 
     const medData = {
@@ -114,8 +118,8 @@ export async function POST(req) {
       type: data.type || "tablet",
       schedule: data.schedule,
       customInterval,
-      times: data.times,
-      startDate: parseDateSafe(data.startDate),
+      times: data.times, // <-- preserve exact selected times
+      startDate,
       endDate: parseDateSafe(data.endDate),
       reminders: !!data.reminders,
       notes: data.notes || "",
@@ -131,6 +135,7 @@ export async function POST(req) {
         startDate: med.startDate?.toISOString() || null,
         endDate: med.endDate?.toISOString() || null,
         reminders: !!med.reminders,
+        doses: doses.map((d) => ({ ...d, taken: "pending" })),
       },
       { status: 201 }
     );

@@ -69,7 +69,11 @@ const MedicationSchema = new mongoose.Schema(
       enum: ["daily", "weekly", "monthly", "custom"],
       required: true,
     },
-    customInterval: { type: CustomIntervalSchema },
+    customInterval: {
+      type: CustomIntervalSchema,
+      default: () => ({ number: 1, unit: "day" }), // added default
+    },
+
     times: {
       type: [String],
       validate: {
@@ -81,14 +85,7 @@ const MedicationSchema = new mongoose.Schema(
       },
       required: [true, "At least one time is required"],
     },
-    status: {
-      type: String,
-      enum: ["pending", "taken", "missed"],
-      default: "pending",
-    },
     startDate: { type: Date, default: null },
-
-    // ✅ Fixed validator (runs only if date fields are modified)
     endDate: {
       type: Date,
       default: null,
@@ -106,7 +103,6 @@ const MedicationSchema = new mongoose.Schema(
         message: "endDate must be after startDate",
       },
     },
-
     reminders: { type: Boolean, default: false },
     notes: { type: String, default: "" },
     doses: { type: [DoseSchema], default: [] },
@@ -127,8 +123,8 @@ MedicationSchema.pre("save", function (next) {
 
     const uniqueTimes = new Set();
     this.doses = this.doses.filter((d) => {
-      if (uniqueTimes.has(d.time)) return false;
-      uniqueTimes.add(d.time);
+      if (uniqueTimes.has(d.time + d.date.toDateString())) return false;
+      uniqueTimes.add(d.time + d.date.toDateString());
       return true;
     });
   }

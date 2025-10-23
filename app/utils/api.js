@@ -42,32 +42,34 @@ export async function fetchDashboardData(userId, filters = {}) {
     const data = await res.json().catch(() => ({}));
     const user = data.user || { role: "patient", _id: userId };
 
-    // 🩵 Fix medications with safe ISO dates
+    // ✅ Helper: safe ISO string
     const parseDateSafe = (val) => {
       if (!val) return null;
       const d = new Date(val);
       return isNaN(d.getTime()) ? null : d.toISOString();
     };
 
-    const medications = (data.medications || []).map((m) => {
-      let frequency = m.schedule;
-      if (m.schedule === "custom" && m.customInterval) {
-        const number = m.customInterval.number || 1;
-        const unit = m.customInterval.unit || "day";
-        frequency = `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
+    // ✅ Helper: format frequency consistently
+    const formatFrequency = (med) => {
+      if (!med) return "N/A";
+      if (med.schedule === "custom" && med.customInterval) {
+        const number = med.customInterval.number || 1;
+        const unit = med.customInterval.unit || "day";
+        return `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
       }
+      return med.schedule || "daily";
+    };
 
-      return {
-        ...m,
-        frequency,
-        startDate: parseDateSafe(m.startDate),
-        endDate: parseDateSafe(m.endDate),
-        filteredDoses: (m.filteredDoses || []).map((d) => ({
-          ...d,
-          date: parseDateSafe(d.date),
-        })),
-      };
-    });
+    const medications = (data.medications || []).map((m) => ({
+      ...m,
+      frequency: formatFrequency(m), // Always recompute
+      startDate: parseDateSafe(m.startDate),
+      endDate: parseDateSafe(m.endDate),
+      filteredDoses: (m.filteredDoses || []).map((d) => ({
+        ...d,
+        date: parseDateSafe(d.date),
+      })),
+    }));
 
     return {
       success: true,

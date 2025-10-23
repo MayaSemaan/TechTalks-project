@@ -1,21 +1,90 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectToDB from "../../../../lib/db.js";
 import Medication from "../../../../models/Medication.js";
 import { authenticate } from "../../../../middlewares/auth.js";
-import mongoose from "mongoose";
 import { randomUUID } from "crypto";
 
-// -------------------
-// PUT /api/medications/:id
-// -------------------
-export async function PUT(req, { params }) {
-  try {
-    console.log("✅ HIT PUT /api/medications/:id");
+// --- Safe date parser ---
+const parseDateSafe = (val) => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
 
+// --- PATCH: update today's dose ---
+export async function PATCH(req, { params }) {
+  try {
     const user = await authenticate(req);
     await connectToDB();
-
     const { id } = params;
+
+    if (!mongoose.Types.ObjectId.isValid(id))
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+
+    const { doseId, status } = await req.json();
+    if (!doseId || !status)
+      return NextResponse.json(
+        { error: "doseId and status are required" },
+        { status: 400 }
+      );
+
+    const med = await Medication.findById(id);
+    if (!med)
+      return NextResponse.json(
+        { error: "Medication not found" },
+        { status: 404 }
+      );
+
+    const isOwner = med.userId.toString() === user._id.toString();
+    let isFamily = false;
+    if (user.role === "family") {
+      const patient = await mongoose.model("User").findById(med.userId);
+      if (
+        patient?.linkedFamily?.some(
+          (fid) => fid.toString() === user._id.toString()
+        )
+      )
+        isFamily = true;
+    }
+    if (!isOwner && !isFamily)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    const todayStr = new Date().toDateString();
+    const dose = med.doses.find(
+      (d) => d.doseId === doseId && new Date(d.date).toDateString() === todayStr
+    );
+    if (!dose)
+      return NextResponse.json(
+        { error: "Dose not found for today" },
+        { status: 404 }
+      );
+
+    dose.taken = status === "taken" ? true : status === "missed" ? false : null;
+    await med.save();
+
+    return NextResponse.json({
+      success: true,
+      updatedDose: {
+        doseId: dose.doseId,
+        time: dose.time,
+        taken: status,
+        date: dose.date,
+      },
+    });
+  } catch (err) {
+    console.error("PATCH error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// --- PUT: update medication ---
+export async function PUT(req, { params }) {
+  try {
+    const user = await authenticate(req);
+    await connectToDB();
+    const { id } = params;
+
     if (!mongoose.Types.ObjectId.isValid(id))
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
@@ -26,72 +95,21 @@ export async function PUT(req, { params }) {
         { status: 404 }
       );
 
-    // Authorization (Owner or Doctor)
     const isOwner = med.userId.toString() === user._id.toString();
     const isDoctor = user.role === "doctor";
     if (!isOwner && !isDoctor)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const data = await req.json();
-
-    // -----------------------
-    // Safe Date Updates
-    // -----------------------
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (data.startDate) {
-      const newStart = new Date(data.startDate);
-      if (!isNaN(newStart)) med.startDate = newStart;
-    }
-
-    if (data.endDate) {
-      const newEnd = new Date(data.endDate);
-      if (!isNaN(newEnd)) med.endDate = newEnd;
-    }
-
-    if (med.startDate && med.endDate && med.endDate < med.startDate) {
-      console.warn("⚠️ endDate < startDate detected — auto-fixing");
-      med.endDate = med.startDate;
-    }
-
+    // --- Update core fields ---
+    if (data.startDate) med.startDate = parseDateSafe(data.startDate);
+    if (data.endDate) med.endDate = parseDateSafe(data.endDate);
     if (!med.startDate) med.startDate = today;
 
-    // -----------------------
-    // Sync times and generate missing doses (preserve past taken/missed)
-    // -----------------------
-    if (Array.isArray(data.times)) {
-      const uniqueTimes = [...new Set(data.times)];
-      const existingDoses = med.doses || [];
-      med.times = uniqueTimes;
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      med.doses = uniqueTimes.map((t) => {
-        const found = existingDoses.find((d) => d.time === t);
-
-        if (found) {
-          return {
-            ...(found.toObject?.() || found),
-            date: found.date || med.startDate,
-            taken: found.taken !== undefined ? found.taken : null,
-          };
-        }
-
-        return {
-          doseId: randomUUID(),
-          time: t,
-          taken: null,
-          date: med.startDate,
-        };
-      });
-    }
-
-    // -----------------------
-    // Update other editable fields
-    // -----------------------
-    const fields = [
+    [
       "name",
       "dosage",
       "unit",
@@ -100,66 +118,93 @@ export async function PUT(req, { params }) {
       "customInterval",
       "reminders",
       "notes",
-    ];
-
-    fields.forEach((f) => {
+    ].forEach((f) => {
       if (data[f] !== undefined) med[f] = data[f];
     });
 
-    // -----------------------
-    // Update dose status if provided
-    // -----------------------
-    if (data.time && data.status) {
-      const dose = med.doses?.find((d) => d.time === data.time);
-      if (dose) {
-        dose.taken =
-          data.status === "taken"
-            ? true
-            : data.status === "missed"
-            ? false
-            : null;
-      }
+    // --- Filter old doses outside date range ---
+    if (med.startDate || med.endDate) {
+      med.doses = (med.doses || []).filter(
+        (d) =>
+          new Date(d.date) >= med.startDate &&
+          (!med.endDate || new Date(d.date) <= med.endDate)
+      );
     }
 
-    // -----------------------
-    // Recalculate medication status
-    // -----------------------
-    const allTaken =
-      med.doses?.length > 0 && med.doses.every((d) => d.taken === true);
-    const allMissed =
-      med.doses?.length > 0 && med.doses.every((d) => d.taken === false);
-    med.status = allTaken ? "taken" : allMissed ? "missed" : "pending";
+    // --- Update times and regenerate doses ---
+    if (Array.isArray(data.times)) {
+      const uniqueTimes = [...new Set(data.times)];
+      med.times = uniqueTimes;
 
-    await med.save({ validateBeforeSave: false });
+      const oldDoses = med.doses || [];
+      const days = [];
+      const start = new Date(med.startDate);
+      const end =
+        med.endDate ||
+        new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1))
+        days.push(new Date(d));
 
-    return NextResponse.json({
-      ...med.toObject(),
-      doses: med.doses.map((d) => ({
+      const intervalDays =
+        med.schedule === "custom"
+          ? med.customInterval.unit === "day"
+            ? med.customInterval.number
+            : med.customInterval.unit === "week"
+            ? med.customInterval.number * 7
+            : med.customInterval.number * 30
+          : 1;
+
+      const newDoses = [];
+      for (let i = 0; i < days.length; i += intervalDays) {
+        const day = days[i];
+        uniqueTimes.forEach((t) => {
+          const found = oldDoses.find(
+            (d) =>
+              d.time === t &&
+              new Date(d.date).toDateString() === day.toDateString()
+          );
+          newDoses.push({
+            doseId: found?.doseId || randomUUID(),
+            time: t,
+            taken: found?.taken ?? null,
+            date: day,
+          });
+        });
+      }
+      med.doses = newDoses;
+    }
+
+    await med.save();
+
+    // --- Doses for today ---
+    const todayStr = today.toDateString();
+    const dosesToday = med.doses
+      .filter((d) => new Date(d.date).toDateString() === todayStr)
+      .map((d) => ({
         doseId: d.doseId,
         time: d.time,
         taken:
           d.taken === true ? "taken" : d.taken === false ? "missed" : "pending",
-        date: d.date || null,
-      })),
-      medicationStatus: med.status,
+        date: d.date,
+      }));
+
+    return NextResponse.json({
+      success: true,
+      medication: { ...med.toObject(), doses: dosesToday },
     });
   } catch (err) {
-    console.error("❌ PUT medication error:", err);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    console.error("PUT error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// -------------------
-// DELETE /api/medications/:id
-// -------------------
+// --- DELETE ---
 export async function DELETE(req, { params }) {
   try {
-    console.log("✅ HIT DELETE /api/medications/:id");
-
     const user = await authenticate(req);
     await connectToDB();
-
     const { id } = params;
+
     if (!mongoose.Types.ObjectId.isValid(id))
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
@@ -169,26 +214,24 @@ export async function DELETE(req, { params }) {
         { error: "Medication not found" },
         { status: 404 }
       );
-
     if (med.userId.toString() !== user._id.toString())
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     await med.deleteOne();
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("❌ DELETE medication error:", err);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    console.error("DELETE error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-// -------------------
-// GET /api/medications/:id
-// -------------------
+
+// --- GET single medication ---
 export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
     await connectToDB();
-
     const { id } = params;
+
     if (!mongoose.Types.ObjectId.isValid(id))
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
@@ -199,23 +242,29 @@ export async function GET(req, { params }) {
         { status: 404 }
       );
 
-    // Authorization (owner, family, or doctor)
     const isOwner = med.userId.toString() === user._id.toString();
     const isDoctor = user.role === "doctor";
     const isFamily = user.role === "family";
     if (!isOwner && !isDoctor && !isFamily)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
+    const todayStr = new Date().toDateString();
+    const dosesToday = med.doses
+      .filter((d) => new Date(d.date).toDateString() === todayStr)
+      .map((d) => ({
+        doseId: d.doseId,
+        time: d.time,
+        taken:
+          d.taken === true ? "taken" : d.taken === false ? "missed" : "pending",
+        date: d.date,
+      }));
+
     return NextResponse.json({
       success: true,
-      medication: {
-        ...med.toObject(),
-        startDate: med.startDate?.toISOString() || null,
-        endDate: med.endDate?.toISOString() || null,
-      },
+      medication: { ...med.toObject(), doses: dosesToday },
     });
   } catch (err) {
-    console.error("❌ GET /medications/:id error:", err);
+    console.error("GET error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

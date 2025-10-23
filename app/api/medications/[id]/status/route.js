@@ -4,7 +4,18 @@ import connectToDB from "../../../../../lib/db.js";
 import Medication from "../../../../../models/Medication.js";
 import { authenticate } from "../../../../../middlewares/auth.js";
 
-// PATCH /api/medications/[id]/status
+// Helper to compute today's status dynamically
+const getStatusForDate = (med, date = new Date()) => {
+  const todayStr = date.toDateString();
+  const todayDoses = med.doses.filter(
+    (d) => new Date(d.date).toDateString() === todayStr
+  );
+  if (todayDoses.length === 0) return "pending";
+  const allTaken = todayDoses.every((d) => d.taken === true);
+  const allMissed = todayDoses.every((d) => d.taken === false);
+  return allTaken ? "taken" : allMissed ? "missed" : "pending";
+};
+
 export async function PATCH(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -38,12 +49,11 @@ export async function PATCH(req, { params }) {
         { status: 404 }
       );
 
-    // ✅ Authorization (Owner or linked Family)
+    // Authorization (Owner or linked Family)
     const isOwner = med.userId.toString() === user._id.toString();
     let isFamily = false;
 
     if (user.role === "family") {
-      // Fetch the medication owner (patient)
       const patient = await mongoose.model("User").findById(med.userId);
       if (
         patient?.linkedFamily?.some(
@@ -54,20 +64,26 @@ export async function PATCH(req, { params }) {
       }
     }
 
-    if (!isOwner && !isFamily) {
+    if (!isOwner && !isFamily)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
 
-    // ✅ Ensure startDate and dose dates
+    // Ensure startDate and dose dates
     if (!med.startDate) med.startDate = new Date();
     med.doses.forEach((d) => {
       if (!d.date) d.date = med.startDate;
     });
 
-    // ✅ Update the specific dose
-    const dose = med.doses.find((d) => d.doseId === doseId);
+    // Update **only today's dose**
+    const todayStr = new Date().toDateString();
+    const dose = med.doses.find(
+      (d) => d.doseId === doseId && new Date(d.date).toDateString() === todayStr
+    );
+
     if (!dose)
-      return NextResponse.json({ error: "Dose not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Dose not found for today" },
+        { status: 404 }
+      );
 
     dose.taken =
       normalizedStatus === "taken"
@@ -75,11 +91,6 @@ export async function PATCH(req, { params }) {
         : normalizedStatus === "missed"
         ? false
         : null;
-
-    // ✅ Recalculate overall status
-    const allTaken = med.doses.every((d) => d.taken === true);
-    const allMissed = med.doses.every((d) => d.taken === false);
-    med.status = allTaken ? "taken" : allMissed ? "missed" : "pending";
 
     await med.save();
 
@@ -91,7 +102,7 @@ export async function PATCH(req, { params }) {
         taken: normalizedStatus,
         date: dose.date,
       },
-      medicationStatus: med.status,
+      medicationStatus: getStatusForDate(med),
     });
   } catch (err) {
     console.error("PATCH /status error:", err);

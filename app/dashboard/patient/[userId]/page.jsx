@@ -78,7 +78,6 @@ export default function DashboardPage() {
       setUser(result.user);
       setLoggedInUser(result.loggedInUser || { role: "patient", id: null });
 
-      // Ensure showDeleteConfirm exists
       const medsWithConfirm = (result.medications || []).map((m) => ({
         ...m,
         showDeleteConfirm: false,
@@ -101,7 +100,6 @@ export default function DashboardPage() {
     loadData();
   }, [userId]);
 
-  // Refresh on window focus
   useEffect(() => {
     const handleFocus = () => loadData();
     window.addEventListener("focus", handleFocus);
@@ -117,10 +115,7 @@ export default function DashboardPage() {
   const handleDoseToggle = async (medId, doseId, currentStatus) => {
     const newStatus = currentStatus === true ? false : true;
     const result = await updateDoseStatus(medId, doseId, newStatus);
-    if (result.success) {
-      // Reload all meds to ensure new doses appear correctly
-      await loadData();
-    }
+    if (result.success) await loadData();
   };
 
   // --- DELETE MEDICATION ---
@@ -187,6 +182,26 @@ export default function DashboardPage() {
     colors: ["#3b82f6", "#f97316", "#9ca3af"],
   };
 
+  const getNextScheduledDate = (med) => {
+    if (med.schedule === "everyday") return null;
+    if (!med.customInterval?.number || !med.customInterval?.unit) return null;
+
+    const start = new Date(med.startDate);
+    const last = new Date();
+    const next = new Date(start);
+
+    const unit = med.customInterval.unit.toLowerCase();
+    const number = med.customInterval.number;
+
+    while (next <= last) {
+      if (unit.includes("day")) next.setDate(next.getDate() + number);
+      else if (unit.includes("week")) next.setDate(next.getDate() + 7 * number);
+      else if (unit.includes("month")) next.setMonth(next.getMonth() + number);
+      else break;
+    }
+    return next;
+  };
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
 
@@ -208,9 +223,8 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Filters & Buttons */}
+        {/* Filters */}
         <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4 flex-wrap gap-4">
-          {/* Medication Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Medication Filters
@@ -246,7 +260,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Report Filters */}
           <div>
             <h2 className="text-lg font-semibold text-blue-900 mb-2">
               Report Filters
@@ -274,7 +287,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex flex-col gap-2">
             <button
               onClick={clearFilters}
@@ -334,6 +346,7 @@ export default function DashboardPage() {
               <p>No chart data available.</p>
             )}
           </div>
+
           <div className="bg-white shadow-md rounded-xl p-6">
             <h2 className="font-semibold mb-4 text-blue-900">
               Overall Summary
@@ -344,83 +357,78 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Medications */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
-            <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
-            {filteredMeds.length === 0 ? (
-              <p className="text-gray-600">
-                No medications found for this filter.
-              </p>
-            ) : (
-              <ul className="text-gray-800 space-y-2">
-                {filteredMeds.map((m) => (
-                  <li key={m._id} className="border rounded p-3 bg-blue-50">
-                    <div className="flex justify-between items-center">
-                      <div className="font-semibold flex items-center gap-2">
-                        {m.name}
-                        <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900">
-                          {m.role?.toUpperCase() || "PATIENT"}
-                        </span>
-                      </div>
+        {/* --- MEDICATION LIST --- */}
+        <div className="bg-white shadow-md rounded-xl p-6 space-y-4 mt-6">
+          <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
+          {filteredMeds.length === 0 ? (
+            <p className="text-gray-600">
+              No medications found for this filter.
+            </p>
+          ) : (
+            filteredMeds.map((m) => {
+              const nextDate = getNextScheduledDate(m);
+              return (
+                <div
+                  key={m._id}
+                  className="border border-gray-200 rounded-2xl p-4 shadow-sm bg-blue-50 mb-4"
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-bold text-lg text-blue-700">
+                      {m.name}
+                    </h3>
+                    <span className="text-sm text-gray-500">
+                      {new Date(m.startDate).toLocaleDateString()} →{" "}
+                      {new Date(m.endDate).toLocaleDateString()}
+                    </span>
+                  </div>
 
-                      {loggedInUser.role === "patient" &&
-                        loggedInUser.id === userId &&
-                        (m.showDeleteConfirm ? (
-                          <div className="flex gap-2 items-center">
-                            <span className="text-sm text-red-600">
-                              Confirm?
-                            </span>
-                            <button
-                              onClick={() => handleDeleteMedication(m._id)}
-                              className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 transition text-sm"
-                            >
-                              Yes
-                            </button>
-                            <button
-                              onClick={() =>
-                                setData((prev) => ({
-                                  ...prev,
-                                  meds: prev.meds.map((med) =>
-                                    med._id === m._id
-                                      ? { ...med, showDeleteConfirm: false }
-                                      : med
-                                  ),
-                                }))
-                              }
-                              className="bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 transition text-sm"
-                            >
-                              No
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              setData((prev) => ({
-                                ...prev,
-                                meds: prev.meds.map((med) =>
-                                  med._id === m._id
-                                    ? { ...med, showDeleteConfirm: true }
-                                    : med
-                                ),
-                              }))
+                  <p className="text-sm text-gray-600 mb-1">
+                    {m.dosage} {m.unit} ({m.type})
+                  </p>
+
+                  {nextDate && (
+                    <p className="text-sm text-blue-700 mb-2">
+                      Next scheduled: {nextDate.toLocaleDateString()}
+                    </p>
+                  )}
+
+                  {m.filteredDoses.length ? (
+                    <ul className="space-y-1">
+                      {m.filteredDoses.map((d) => {
+                        const today = new Date();
+                        const start = new Date(m.startDate);
+                        const end = new Date(m.endDate);
+                        const isTodayActive =
+                          today >= new Date(start.setHours(0, 0, 0, 0)) &&
+                          today <= new Date(end.setHours(23, 59, 59, 999));
+
+                        let statusLabel = "not active today";
+                        let statusColor = "text-gray-500";
+
+                        if (isTodayActive) {
+                          if (m.schedule === "everyday") {
+                            if (d.taken === true) {
+                              statusLabel = "taken";
+                              statusColor = "text-green-600";
+                            } else if (d.taken === false) {
+                              statusLabel = "missed";
+                              statusColor = "text-red-600";
+                            } else {
+                              statusLabel = "pending";
+                              statusColor = "text-orange-500";
                             }
-                            className="text-red-600 hover:underline text-sm transition"
+                          } else {
+                            statusLabel = "-";
+                            statusColor = "text-gray-400";
+                          }
+                        }
+
+                        return (
+                          <li
+                            key={d.doseId}
+                            className="flex justify-between items-center border-b border-gray-100 py-1"
                           >
-                            Delete
-                          </button>
-                        ))}
-                    </div>
-
-                    <div className="text-sm text-gray-700 mb-2">
-                      {m.dosage} {m.unit} ({m.type})
-                    </div>
-
-                    {m.filteredDoses.length ? (
-                      <ul className="ml-4 list-disc text-gray-800">
-                        {m.filteredDoses.map((d) => (
-                          <li key={d.doseId}>
-                            {new Date(d.date).toLocaleDateString()} {d.time} –{" "}
+                            <span className="text-gray-800">{d.time}</span>
                             <button
                               onClick={() =>
                                 handleDoseToggle(m._id, d.doseId, d.taken)
@@ -432,82 +440,72 @@ export default function DashboardPage() {
                                   loggedInUser.role === "family"
                                 )
                               }
-                              className={`font-semibold ${
-                                d.taken === true
-                                  ? "text-green-600"
-                                  : d.taken === false
-                                  ? "text-red-600"
-                                  : "text-gray-600"
-                              } transition`}
+                              className={`font-semibold ${statusColor} transition`}
                             >
-                              {d.taken === true
-                                ? "Taken"
-                                : d.taken === false
-                                ? "Missed"
-                                : "Pending"}
+                              {statusLabel}
                             </button>
                           </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-gray-500 text-sm">
-                        No doses in this filter.
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      No doses in this filter.
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
 
-          {/* Reports */}
-          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
-            <h2 className="font-semibold text-blue-900 mb-2">Recent Reports</h2>
-            {filteredReports.length === 0 ? (
-              <p className="text-gray-600">No reports found for this filter.</p>
-            ) : (
-              <div className="grid gap-4">
-                {filteredReports.map((r) => (
-                  <div
-                    key={r._id}
-                    className="bg-white shadow-md rounded-xl p-4 flex justify-between items-center"
-                  >
-                    <div className="flex flex-col">
-                      <p className="font-semibold">{r.title}</p>
-                      <p className="text-sm text-gray-500">
-                        Uploaded:{" "}
-                        {r.uploadedAt
-                          ? new Date(r.uploadedAt).toLocaleString()
-                          : "N/A"}
-                      </p>
-                      {r.role && (
-                        <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900 mt-1 w-max">
-                          {r.role.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <a
-                        href={`/reports/view/${r._id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline text-blue-600"
-                      >
-                        View
-                      </a>
-                      <a
-                        href={r.fileUrl}
-                        download
-                        className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
-                      >
-                        Download
-                      </a>
-                    </div>
+        {/* --- REPORTS --- */}
+        <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
+          <h2 className="font-semibold text-blue-900 mb-2">Recent Reports</h2>
+          {filteredReports.length === 0 ? (
+            <p className="text-gray-600">No reports found for this filter.</p>
+          ) : (
+            <div className="grid gap-4">
+              {filteredReports.map((r) => (
+                <div
+                  key={r._id}
+                  className="bg-white shadow-md rounded-xl p-4 flex justify-between items-center"
+                >
+                  <div className="flex flex-col">
+                    <p className="font-semibold">{r.title}</p>
+                    <p className="text-sm text-gray-500">
+                      Uploaded:{" "}
+                      {r.uploadedAt
+                        ? new Date(r.uploadedAt).toLocaleString()
+                        : "N/A"}
+                    </p>
+                    {r.role && (
+                      <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900 mt-1 w-max">
+                        {r.role.toUpperCase()}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="flex gap-2">
+                    <a
+                      href={`/reports/view/${r._id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline text-blue-600"
+                    >
+                      View
+                    </a>
+                    <a
+                      href={r.fileUrl}
+                      download
+                      className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

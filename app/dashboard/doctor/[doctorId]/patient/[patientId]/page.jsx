@@ -53,6 +53,43 @@ const formatDate = (date) => {
   });
 };
 
+// Normalize medication object
+
+// Normalize medication object
+// Normalize medication object and ensure frequency is correct
+const normalizeMedication = (raw) => {
+  const med = raw || {};
+  const schedule = med.schedule || "daily";
+  const ci = med.customInterval || null;
+
+  let frequency = "";
+  if (schedule === "custom" && ci?.number && ci?.unit) {
+    const n = Number(ci.number) || 1;
+    const unit = ci.unit || "day";
+    frequency = `Every ${n} ${unit}${n > 1 ? "s" : ""}`;
+  } else {
+    frequency = schedule.charAt(0).toUpperCase() + schedule.slice(1); // daily/weekly/monthly
+  }
+
+  return {
+    _id: med._id,
+    name: med.name || "Unnamed Medication",
+    dosage: med.dosage ?? 0,
+    unit: med.unit || "mg",
+    type: med.type || "tablet",
+    schedule,
+    customInterval: ci,
+    frequency,
+    times: Array.isArray(med.times) ? med.times : [],
+    startDate: med.startDate || "",
+    endDate: med.endDate || "",
+    reminders: !!med.reminders,
+    notes: med.notes || "",
+    filteredDoses: Array.isArray(med.filteredDoses) ? med.filteredDoses : [],
+    __raw: med,
+  };
+};
+
 export default function DoctorPatientDashboardPage() {
   const { doctorId, patientId } = useParams();
   const router = useRouter();
@@ -65,7 +102,6 @@ export default function DoctorPatientDashboardPage() {
     reports: [],
     chartData: [],
   });
-
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
@@ -74,35 +110,38 @@ export default function DoctorPatientDashboardPage() {
   const [reportToDelete, setReportToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Filter states
   const [medSearch, setMedSearch] = useState("");
-  const [medDateFrom, setMedDateFrom] = useState("");
-  const [medDateTo, setMedDateTo] = useState("");
-  const [medStatusFilter, setMedStatusFilter] = useState(""); // "", "taken", "missed", "pending"
+  const [medFilterDay, setMedFilterDay] = useState("");
+  const [medStatusFilter, setMedStatusFilter] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [reportDateFrom, setReportDateFrom] = useState("");
   const [reportDateTo, setReportDateTo] = useState("");
 
+  // Load dashboard data
   const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchDashboardData(patientId);
-      if (!res.success && !Array.isArray(res))
+      if (!res.success && !Array.isArray(res) && typeof res !== "object")
         throw new Error(res.error || "Failed to fetch dashboard");
 
-      // Ensure all medications have customInterval object
-      const meds = Array.isArray(res)
+      const medsRaw = Array.isArray(res)
         ? res
-        : (res.medications || []).map((m) => ({
-            ...m,
-            customInterval: m.customInterval || { number: 1, unit: "day" },
-          }));
+        : Array.isArray(res.medications)
+        ? res.medications
+        : [];
+      const meds = medsRaw.map(normalizeMedication);
 
-      setData({
-        ...res,
+      setData((prev) => ({
+        ...prev,
+        ...(res.user ? { user: res.user } : {}),
         medications: meds,
-      });
+        reports: Array.isArray(res.reports) ? res.reports : prev.reports,
+        chartData: Array.isArray(res.chartData)
+          ? res.chartData
+          : prev.chartData,
+      }));
     } catch (err) {
       setError(err.message || "Failed to load dashboard");
     } finally {
@@ -114,6 +153,7 @@ export default function DoctorPatientDashboardPage() {
     loadData();
   }, [patientId]);
 
+  // Save medication from modal
   const handleSaveFromModal = async (payload) => {
     setSaving(true);
     try {
@@ -123,6 +163,20 @@ export default function DoctorPatientDashboardPage() {
         ? `/api/doctor/patient/${patientId}/medications/${editingMed._id}`
         : `/api/doctor/patient/${patientId}/medications`;
       const method = editingMed?._id ? "PUT" : "POST";
+
+      // Ensure payload.customInterval.number is a Number and compute frequency so the local state is consistent
+      if (payload.customInterval) {
+        payload.customInterval.number =
+          Number(payload.customInterval.number) || 1;
+        payload.customInterval.unit = payload.customInterval.unit || "day";
+      }
+
+      payload.frequency =
+        payload.schedule === "custom" && payload.customInterval
+          ? `Every ${payload.customInterval.number} ${
+              payload.customInterval.unit
+            }${payload.customInterval.number > 1 ? "s" : ""}`
+          : payload.schedule || "daily";
 
       const res = await fetch(url, {
         method,
@@ -136,30 +190,22 @@ export default function DoctorPatientDashboardPage() {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || "Failed to save medication");
       }
-      const savedMed = await res.json();
 
-      // Ensure customInterval always exists
-      const medWithInterval = {
-        ...savedMed.medication,
-        customInterval: savedMed.medication.customInterval || {
-          number: 1,
-          unit: "day",
-        },
-      };
+      const saved = await res.json();
+      // backend returns { medication: {...} } for both POST and PUT
+      const medRaw = saved?.medication ?? saved ?? null;
+      if (!medRaw) throw new Error("Invalid server response");
 
-      if (editingMed?._id) {
-        setData((prev) => ({
-          ...prev,
-          medications: prev.medications.map((m) =>
-            m._id === medWithInterval._id ? medWithInterval : m
-          ),
-        }));
-      } else {
-        setData((prev) => ({
-          ...prev,
-          medications: [...prev.medications, medWithInterval],
-        }));
-      }
+      const medWithInterval = normalizeMedication(medRaw);
+
+      setData((prev) => {
+        const updatedMeds = editingMed
+          ? prev.medications.map((m) =>
+              m._id === medWithInterval._id ? medWithInterval : m
+            )
+          : [medWithInterval, ...prev.medications];
+        return { ...prev, medications: updatedMeds };
+      });
 
       setModalOpen(false);
       setEditingMed(null);
@@ -171,10 +217,13 @@ export default function DoctorPatientDashboardPage() {
     }
   };
 
+  // Open modal for adding med
   const handleAddMedication = () => {
     setEditingMed(null);
     setModalOpen(true);
   };
+
+  // Open modal for editing med
   const handleEditMedication = async (med) => {
     setModalLoading(true);
     try {
@@ -186,17 +235,10 @@ export default function DoctorPatientDashboardPage() {
       );
       if (!res.ok) throw new Error("Failed to fetch medication");
       const payload = await res.json();
-
-      // Ensure customInterval exists
-      const medWithInterval = {
-        ...payload.medication,
-        customInterval: payload.medication.customInterval || {
-          number: 1,
-          unit: "day",
-        },
-      };
-
-      setEditingMed(medWithInterval);
+      const medRaw = payload?.medication ?? payload ?? null;
+      if (!medRaw)
+        throw new Error("Invalid server response when fetching medication");
+      setEditingMed(normalizeMedication(medRaw));
       setModalOpen(true);
     } catch (err) {
       console.error(err);
@@ -206,13 +248,12 @@ export default function DoctorPatientDashboardPage() {
     }
   };
 
-  // Filtered medications with doses filtered
+  // Filtered medications
   const filteredMeds = useMemo(() => {
     return (data.medications || [])
       .map((m) => {
         let doses = m.filteredDoses || [];
-        // Status filter
-        if (medStatusFilter)
+        if (medStatusFilter) {
           doses = doses.filter((d) =>
             medStatusFilter === "taken"
               ? d.taken === true
@@ -220,30 +261,26 @@ export default function DoctorPatientDashboardPage() {
               ? d.taken === false
               : d.taken == null
           );
-        // Date range filter
-        if (medDateFrom || medDateTo) {
-          const from = medDateFrom ? new Date(medDateFrom) : null;
-          const to = medDateTo ? new Date(medDateTo) : null;
+        }
+        if (medFilterDay) {
+          const filterDate = new Date(medFilterDay);
+          filterDate.setHours(0, 0, 0, 0);
           doses = doses.filter((d) => {
-            const dd = new Date(d.date);
-            if (from && dd < from) return false;
-            if (to && dd > to) return false;
-            return true;
+            const doseDate = d.date ? new Date(d.date) : null;
+            if (!doseDate) return false;
+            doseDate.setHours(0, 0, 0, 0);
+            return doseDate.getTime() === filterDate.getTime();
           });
         }
         return { ...m, filteredDoses: doses };
       })
-      .filter(
-        (m) =>
-          m.name.toLowerCase().includes(medSearch.toLowerCase()) &&
-          m.filteredDoses.length > 0
-      );
-  }, [data.medications, medSearch, medDateFrom, medDateTo, medStatusFilter]);
+      .filter((m) => m.name.toLowerCase().includes(medSearch.toLowerCase()));
+  }, [data.medications, medSearch, medStatusFilter, medFilterDay]);
 
-  // Filtered reports with title + date
+  // Reports filtered
   const filteredReports = useMemo(() => {
     return (data.reports || []).filter((r) => {
-      const titleMatch = r.title
+      const titleMatch = (r.title || "")
         .toLowerCase()
         .includes(reportSearch.toLowerCase());
       const from = reportDateFrom ? new Date(reportDateFrom) : null;
@@ -258,12 +295,22 @@ export default function DoctorPatientDashboardPage() {
     });
   }, [data.reports, reportSearch, reportDateFrom, reportDateTo]);
 
+  const selectedDate = medFilterDay ? new Date(medFilterDay) : new Date();
+  selectedDate.setHours(0, 0, 0, 0);
+
   const totalDoses = filteredMeds
-    .flatMap((m) => m?.filteredDoses || [])
-    .filter(Boolean);
+    .flatMap((m) => m.filteredDoses || [])
+    .filter((d) => {
+      const doseDate = d.date ? new Date(d.date) : null;
+      if (!doseDate) return false;
+      doseDate.setHours(0, 0, 0, 0);
+      return doseDate.getTime() === selectedDate.getTime();
+    });
+
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
   const totalPending = totalDoses.filter((d) => d.taken == null).length;
+
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
@@ -313,10 +360,16 @@ export default function DoctorPatientDashboardPage() {
           </div>
           <div className="bg-white shadow-md rounded-xl p-4 md:p-6">
             <h2 className="font-semibold mb-4 text-blue-900">
-              Overall Summary
+              Summary for {medFilterDay || "today"}
             </h2>
             <div className="w-full h-64">
-              <ChartComponent data={pieData} />
+              {totalDoses.length === 0 ? (
+                <p className="text-gray-600 text-center mt-24">
+                  No doses recorded for this day.
+                </p>
+              ) : (
+                <ChartComponent data={pieData} />
+              )}
             </div>
           </div>
         </section>
@@ -336,14 +389,8 @@ export default function DoctorPatientDashboardPage() {
             />
             <input
               type="date"
-              value={medDateFrom}
-              onChange={(e) => setMedDateFrom(e.target.value)}
-              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
-            />
-            <input
-              type="date"
-              value={medDateTo}
-              onChange={(e) => setMedDateTo(e.target.value)}
+              value={medFilterDay}
+              onChange={(e) => setMedFilterDay(e.target.value)}
               className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
             />
             <select
@@ -375,28 +422,16 @@ export default function DoctorPatientDashboardPage() {
                       </p>
                       <p className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Frequency:</span>{" "}
-                        {med.schedule === "custom"
-                          ? `Every ${med.customInterval?.number || 1} ${
-                              med.customInterval?.unit || "day"
-                            }${
-                              (med.customInterval?.number || 1) > 1 ? "s" : ""
-                            }`
-                          : med.schedule || "N/A"}
+                        {med.frequency || "N/A"}
                       </p>
 
                       <p className="text-sm text-gray-600">
                         <span className="font-medium">Start Date:</span>{" "}
-                        {formatDate(
-                          med.startDate || med.filteredDoses?.[0]?.date || null
-                        )}
+                        {formatDate(med.startDate)}
                       </p>
                       <p className="text-sm text-gray-600">
                         <span className="font-medium">End Date:</span>{" "}
-                        {formatDate(
-                          med.endDate ||
-                            med.filteredDoses?.slice(-1)[0]?.date ||
-                            null
-                        )}
+                        {formatDate(med.endDate)}
                       </p>
                     </div>
                     <button
@@ -406,10 +441,12 @@ export default function DoctorPatientDashboardPage() {
                       Edit
                     </button>
                   </div>
+
+                  {/* Doses section */}
                   <div className="ml-4">
                     <p className="font-semibold text-gray-800">Doses:</p>
                     {!med.filteredDoses?.length ? (
-                      <p className="text-gray-500 text-sm">
+                      <p className="text-gray-500 text-sm italic">
                         No doses available.
                       </p>
                     ) : (
@@ -418,29 +455,51 @@ export default function DoctorPatientDashboardPage() {
                           ?.slice()
                           .sort(
                             (a, b) =>
-                              new Date(`${a.date} ${a.time}`) -
-                              new Date(`${b.date} ${b.time}`)
+                              new Date(`${a.date || ""} ${a.time || ""}`) -
+                              new Date(`${b.date || ""} ${b.time || ""}`)
                           )
-                          .map((d, idx) => (
-                            <li key={d.doseId || idx}>
-                              {formatDate(d.date)} {d.time || "-"} –{" "}
-                              <span
-                                className={`font-semibold ${
-                                  d.taken === true
-                                    ? "text-blue-600"
-                                    : d.taken === false
-                                    ? "text-red-600"
-                                    : "text-gray-600"
-                                }`}
-                              >
-                                {d.taken === true
+                          .map((d, idx) => {
+                            const doseDate = d.date ? new Date(d.date) : null;
+                            const doseDay = doseDate
+                              ? new Date(doseDate)
+                              : null;
+                            if (doseDay) doseDay.setHours(0, 0, 0, 0);
+
+                            let status;
+                            if (
+                              doseDay &&
+                              doseDay.getTime() === selectedDate.getTime()
+                            ) {
+                              status =
+                                d.taken === true
                                   ? "Taken"
                                   : d.taken === false
                                   ? "Missed"
-                                  : "Pending"}
-                              </span>
-                            </li>
-                          ))}
+                                  : "Pending";
+                            } else {
+                              status = "Not for selected day";
+                            }
+
+                            const statusColor =
+                              status === "Taken"
+                                ? "text-blue-600"
+                                : status === "Missed"
+                                ? "text-red-600"
+                                : status === "Pending"
+                                ? "text-gray-600"
+                                : "text-gray-400";
+
+                            return (
+                              <li key={d.doseId || idx}>
+                                {d.time || "-"} –{" "}
+                                <span
+                                  className={`font-semibold ${statusColor}`}
+                                >
+                                  {status}
+                                </span>
+                              </li>
+                            );
+                          })}
                       </ul>
                     )}
                   </div>
@@ -633,7 +692,7 @@ export default function DoctorPatientDashboardPage() {
                   }
                 }}
                 disabled={deleting}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+                className="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>

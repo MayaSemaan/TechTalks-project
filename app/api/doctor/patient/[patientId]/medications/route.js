@@ -12,11 +12,29 @@ const parseDateSafe = (val) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-// ✅ Convert any value to ISO string safely
+// Convert any value to ISO string safely
 const toISOStringSafe = (val) => {
   if (!val) return null;
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+// Format frequency string
+const formatFrequency = (medObj) => {
+  if (!medObj) return "N/A";
+
+  if (medObj.schedule === "custom" && medObj.customInterval) {
+    const number = Number(medObj.customInterval.number);
+    const unit = medObj.customInterval.unit;
+
+    if (!number || !unit) return "N/A"; // ✅ ensure valid custom interval
+
+    return `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
+  }
+
+  return medObj.schedule
+    ? medObj.schedule.charAt(0).toUpperCase() + medObj.schedule.slice(1)
+    : "Daily";
 };
 
 // Validate medication fields
@@ -34,7 +52,7 @@ function validateMedicationData(data) {
   });
 }
 
-// ✅ GET all medications for a specific patient
+// GET all medications
 export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -58,10 +76,9 @@ export async function GET(req, { params }) {
         dosage: medObj.dosage,
         unit: medObj.unit,
         type: medObj.type,
-        frequency:
-          medObj.schedule === "custom"
-            ? `Every ${medObj.customInterval || 1} hours`
-            : medObj.schedule,
+        schedule: medObj.schedule || "daily",
+        customInterval: medObj.customInterval || null,
+        frequency: formatFrequency(medObj), // ✅ Always correct
         startDate: toISOStringSafe(medObj.startDate),
         endDate: toISOStringSafe(medObj.endDate),
         reminders: !!medObj.reminders,
@@ -83,7 +100,7 @@ export async function GET(req, { params }) {
   }
 }
 
-// ✅ POST new medication for a specific patient
+// POST new medication
 export async function POST(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -100,11 +117,12 @@ export async function POST(req, { params }) {
     const data = await req.json();
     validateMedicationData(data);
 
+    const startDate = parseDateSafe(data.startDate) || new Date();
     const doses = (Array.isArray(data.times) ? data.times : []).map((time) => ({
       doseId: crypto.randomUUID(),
       time,
       taken: null,
-      date: parseDateSafe(data.startDate) || new Date(),
+      date: startDate,
     }));
 
     const medData = {
@@ -114,9 +132,14 @@ export async function POST(req, { params }) {
       type: data.type || "tablet",
       schedule: data.schedule || "daily",
       customInterval:
-        data.schedule === "custom" ? data.customInterval : undefined,
+        data.schedule === "custom" && data.customInterval
+          ? {
+              number: Number(data.customInterval.number) || 1,
+              unit: data.customInterval.unit || "day",
+            }
+          : null,
       times: data.times,
-      startDate: parseDateSafe(data.startDate),
+      startDate,
       endDate: parseDateSafe(data.endDate),
       reminders: !!data.reminders,
       notes: data.notes || "",
@@ -127,31 +150,29 @@ export async function POST(req, { params }) {
     const med = await Medication.create(medData);
     const safeDoses = Array.isArray(med.doses) ? med.doses : [];
 
-    return NextResponse.json(
-      {
-        _id: med._id,
-        name: med.name,
-        dosage: med.dosage,
-        unit: med.unit,
-        type: med.type,
-        frequency:
-          med.schedule === "custom"
-            ? `Every ${med.customInterval || 1} hours`
-            : med.schedule,
-        startDate: toISOStringSafe(med.startDate),
-        endDate: toISOStringSafe(med.endDate),
-        reminders: !!med.reminders,
-        notes: med.notes || "",
-        times: med.times || [],
-        filteredDoses: safeDoses.map((d) => ({
-          doseId: d.doseId || crypto.randomUUID(),
-          time: d.time || null,
-          taken: d.taken ?? null,
-          date: toISOStringSafe(d.date),
-        })),
-      },
-      { status: 201 }
-    );
+    const responseMed = {
+      _id: med._id,
+      name: med.name,
+      dosage: med.dosage,
+      unit: med.unit,
+      type: med.type,
+      schedule: med.schedule,
+      customInterval: med.customInterval || null,
+      frequency: formatFrequency(med), // ✅ Always correct
+      startDate: toISOStringSafe(med.startDate),
+      endDate: toISOStringSafe(med.endDate),
+      reminders: !!med.reminders,
+      notes: med.notes || "",
+      times: med.times || [],
+      filteredDoses: safeDoses.map((d) => ({
+        doseId: d.doseId || crypto.randomUUID(),
+        time: d.time || null,
+        taken: d.taken ?? null,
+        date: toISOStringSafe(d.date),
+      })),
+    };
+
+    return NextResponse.json({ medication: responseMed }, { status: 201 });
   } catch (err) {
     console.error("❌ POST medications error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });
