@@ -32,26 +32,11 @@ export async function GET(req, { params }) {
 
     const patients = await Promise.all(
       (family.linkedPatients || []).map(async (p) => {
-        // Fetch medications for patient
+        // Count medications for patient
         const meds = await Medication.find({ userId: p._id }).lean();
+        const totalMedications = meds.length;
 
-        let taken = 0;
-        let missed = 0;
-        let pending = 0;
-
-        meds.forEach((med) => {
-          (med.doses || []).forEach((d) => {
-            // Ensure taken is treated properly
-            if (d.taken === true || d.taken === "true") taken++;
-            else if (d.taken === false || d.taken === "false") missed++;
-            else pending++;
-          });
-        });
-
-        const totalDoses = taken + missed + pending;
-        const compliance =
-          totalDoses > 0 ? Math.round((taken / totalDoses) * 100) : 0;
-
+        // Count reports
         const totalReports = await Report.countDocuments({ patient: p._id });
 
         return {
@@ -59,10 +44,7 @@ export async function GET(req, { params }) {
           name: p.name,
           email: p.email,
           role: p.role,
-          complianceTotal: compliance,
-          dosesTaken: taken,
-          dosesMissed: missed,
-          dosesPending: pending,
+          totalMedications,
           totalReports,
         };
       })

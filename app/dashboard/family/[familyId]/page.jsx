@@ -43,10 +43,7 @@ export default function FamilyDashboardPage() {
           patientId: p._id,
           patientName: p.name || "Unnamed Patient",
           patientEmail: p.email || "No email",
-          complianceTotal: p.complianceTotal ?? 0,
-          dosesTaken: p.dosesTaken ?? 0,
-          dosesMissed: p.dosesMissed ?? 0,
-          dosesPending: p.dosesPending ?? 0,
+          totalMedications: p.totalMedications ?? 0, // ✅ Number of meds
           totalReports: p.totalReports ?? 0,
         })),
       });
@@ -101,10 +98,7 @@ export default function FamilyDashboardPage() {
                   </div>
 
                   <div className="text-sm space-y-1">
-                    <p>Compliance: {p.complianceTotal}%</p>
-                    <p>Taken: {p.dosesTaken}</p>
-                    <p>Missed: {p.dosesMissed}</p>
-                    <p>Pending: {p.dosesPending}</p>
+                    <p>Total Medications: {p.totalMedications}</p>
                     <p>Total Reports: {p.totalReports}</p>
                   </div>
 

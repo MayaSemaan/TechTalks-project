@@ -5,6 +5,7 @@ import { authenticate } from "../../../../../../../middlewares/auth.js";
 import mongoose from "mongoose";
 import { randomUUID } from "crypto";
 
+// ---------- Helpers ----------
 const parseDateSafe = (val) => {
   if (!val) return null;
   const d = new Date(val);
@@ -17,24 +18,32 @@ const toISOStringSafe = (val) => {
   return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
-const formatFrequency = (medObj) => {
-  if (!medObj) return "N/A";
+// ---------- Frequency formatter ----------
+const formatFrequency = ({ schedule, customInterval }) => {
+  schedule = schedule || "daily";
+  let ci = customInterval;
 
-  if (medObj.schedule === "custom" && medObj.customInterval) {
-    const number = Number(medObj.customInterval.number);
-    const unit = medObj.customInterval.unit;
-
-    if (!number || !unit) return "N/A"; // ✅ ensure valid custom interval
-
-    return `Every ${number} ${unit}${number > 1 ? "s" : ""}`;
+  // parse string if needed
+  if (typeof ci === "string") {
+    try {
+      ci = JSON.parse(ci);
+    } catch {
+      ci = null;
+    }
   }
 
-  return medObj.schedule
-    ? medObj.schedule.charAt(0).toUpperCase() + medObj.schedule.slice(1)
-    : "Daily";
+  // for custom schedule, ensure defaults
+  if (schedule === "custom") {
+    if (!ci || !ci.number || !ci.unit) ci = { number: 1, unit: "day" };
+    return `Every ${Number(ci.number)} ${ci.unit}${
+      Number(ci.number) > 1 ? "s" : ""
+    }`;
+  }
+
+  return schedule.charAt(0).toUpperCase() + schedule.slice(1);
 };
 
-// GET single medication
+// ---------- GET single medication ----------
 export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -66,6 +75,15 @@ export async function GET(req, { params }) {
     const medObj = med.toObject();
     const safeDoses = Array.isArray(medObj.doses) ? medObj.doses : [];
 
+    // normalize customInterval
+    const customInterval =
+      medObj.schedule === "custom"
+        ? {
+            number: Number(medObj.customInterval?.number) || 1,
+            unit: medObj.customInterval?.unit || "day",
+          }
+        : null;
+
     const responseMed = {
       _id: medObj._id,
       name: medObj.name,
@@ -73,8 +91,8 @@ export async function GET(req, { params }) {
       unit: medObj.unit,
       type: medObj.type,
       schedule: medObj.schedule || "daily",
-      customInterval: medObj.customInterval || null,
-      frequency: formatFrequency(medObj), // ✅ Always correct
+      customInterval,
+      frequency: formatFrequency({ schedule: medObj.schedule, customInterval }),
       startDate: toISOStringSafe(medObj.startDate),
       endDate: toISOStringSafe(medObj.endDate),
       reminders: !!medObj.reminders,
@@ -95,7 +113,7 @@ export async function GET(req, { params }) {
   }
 }
 
-// PUT update medication
+// ---------- PUT update medication ----------
 export async function PUT(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -122,29 +140,57 @@ export async function PUT(req, { params }) {
       );
 
     const data = await req.json();
+
+    // normalize customInterval
+    let customInterval = null;
+    if (data.schedule === "custom") {
+      const ci =
+        typeof data.customInterval === "string"
+          ? (() => {
+              try {
+                return JSON.parse(data.customInterval);
+              } catch {
+                return null;
+              }
+            })()
+          : data.customInterval;
+      customInterval = {
+        number: Number(ci?.number) || 1,
+        unit: ci?.unit || "day",
+      };
+    }
+
+    // update fields
     const fields = [
       "name",
       "dosage",
       "unit",
       "type",
       "schedule",
-      "customInterval",
       "reminders",
       "notes",
       "startDate",
       "endDate",
+      "times",
     ];
-
     fields.forEach((f) => {
-      if (data[f] !== undefined) {
+      if (data[f] !== undefined)
         med[f] = f.includes("Date") ? parseDateSafe(data[f]) : data[f];
-      }
     });
+    med.customInterval = customInterval;
 
     await med.save({ validateBeforeSave: false });
 
     const medObj = med.toObject();
     const safeDoses = Array.isArray(medObj.doses) ? medObj.doses : [];
+
+    const normalizedInterval =
+      medObj.schedule === "custom"
+        ? {
+            number: Number(medObj.customInterval?.number) || 1,
+            unit: medObj.customInterval?.unit || "day",
+          }
+        : null;
 
     const responseMed = {
       _id: medObj._id,
@@ -153,8 +199,11 @@ export async function PUT(req, { params }) {
       unit: medObj.unit,
       type: medObj.type,
       schedule: medObj.schedule || "daily",
-      customInterval: medObj.customInterval || null,
-      frequency: formatFrequency(medObj), // ✅ Always correct after edit
+      customInterval: normalizedInterval,
+      frequency: formatFrequency({
+        schedule: medObj.schedule,
+        customInterval: normalizedInterval,
+      }),
       startDate: toISOStringSafe(medObj.startDate),
       endDate: toISOStringSafe(medObj.endDate),
       reminders: !!medObj.reminders,
