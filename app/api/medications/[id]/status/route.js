@@ -4,38 +4,46 @@ import connectToDB from "../../../../../lib/db.js";
 import Medication from "../../../../../models/Medication.js";
 import { authenticate } from "../../../../../middlewares/auth.js";
 
-// Helper to compute today's status dynamically
+// Helper: get overall status for a given date
 const getStatusForDate = (med, date = new Date()) => {
-  const todayStr = date.toDateString();
-  const todayDoses = med.doses.filter(
-    (d) => new Date(d.date).toDateString() === todayStr
+  const targetStr = date.toDateString();
+  const dosesForDate = med.doses.filter(
+    (d) => new Date(d.date).toDateString() === targetStr
   );
-  if (todayDoses.length === 0) return "pending";
-  const allTaken = todayDoses.every((d) => d.taken === true);
-  const allMissed = todayDoses.every((d) => d.taken === false);
+  if (dosesForDate.length === 0) return "pending";
+  const allTaken = dosesForDate.every((d) => d.taken === true);
+  const allMissed = dosesForDate.every((d) => d.taken === false);
   return allTaken ? "taken" : allMissed ? "missed" : "pending";
 };
 
 export async function PATCH(req, { params }) {
   try {
-    const user = await authenticate(req);
-    await connectToDB();
+    const user = await authenticate(req); // logged-in user
 
+    if (user.role !== "patient")
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+
+    await connectToDB();
     const { id } = params;
+
     if (!mongoose.Types.ObjectId.isValid(id))
       return NextResponse.json(
         { error: "Invalid medication ID" },
         { status: 400 }
       );
 
-    const { doseId, status } = await req.json();
-    if (!doseId || !status)
+    const { doseId, status, date } = await req.json();
+
+    if (!doseId || typeof status === "undefined")
       return NextResponse.json(
         { error: "doseId and status are required" },
         { status: 400 }
       );
 
-    const normalizedStatus = status.toLowerCase();
+    // Normalize status
+    const normalizedStatus =
+      status === true ? "taken" : status === false ? "missed" : "pending";
+
     if (!["taken", "missed", "pending"].includes(normalizedStatus))
       return NextResponse.json(
         { error: "Invalid status value" },
@@ -49,42 +57,41 @@ export async function PATCH(req, { params }) {
         { status: 404 }
       );
 
-    // Authorization (Owner or linked Family)
-    const isOwner = med.userId.toString() === user._id.toString();
-    let isFamily = false;
-
-    if (user.role === "family") {
-      const patient = await mongoose.model("User").findById(med.userId);
-      if (
-        patient?.linkedFamily?.some(
-          (fid) => fid.toString() === user._id.toString()
-        )
-      ) {
-        isFamily = true;
-      }
-    }
-
-    if (!isOwner && !isFamily)
+    if (med.userId.toString() !== user._id.toString())
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-    // Ensure startDate and dose dates
+    // Ensure doses have valid dates
     if (!med.startDate) med.startDate = new Date();
     med.doses.forEach((d) => {
       if (!d.date) d.date = med.startDate;
     });
 
-    // Update **only today's dose**
-    const todayStr = new Date().toDateString();
-    const dose = med.doses.find(
-      (d) => d.doseId === doseId && new Date(d.date).toDateString() === todayStr
+    // Use provided date or fallback to today
+    const targetDate = date ? new Date(date) : new Date();
+    const targetStr = targetDate.toDateString();
+
+    // Find dose for the target date
+    let dose = med.doses.find(
+      (d) =>
+        d.doseId === doseId && new Date(d.date).toDateString() === targetStr
     );
 
-    if (!dose)
-      return NextResponse.json(
-        { error: "Dose not found for today" },
-        { status: 404 }
-      );
+    // If dose does not exist, create it (for that day)
+    if (!dose) {
+      // Find the original dose in med.times
+      const [medIdPart, idx] = doseId.split("-").slice(1); // extract index
+      const time = med.times?.[Number(idx)] || "08:00";
 
+      dose = {
+        doseId,
+        time,
+        date: targetDate,
+        taken: null,
+      };
+      med.doses.push(dose);
+    }
+
+    // Update taken status
     dose.taken =
       normalizedStatus === "taken"
         ? true
@@ -99,10 +106,10 @@ export async function PATCH(req, { params }) {
       updatedDose: {
         doseId: dose.doseId,
         time: dose.time,
-        taken: normalizedStatus,
+        taken: dose.taken,
         date: dose.date,
       },
-      medicationStatus: getStatusForDate(med),
+      medicationStatus: getStatusForDate(med, targetDate),
     });
   } catch (err) {
     console.error("PATCH /status error:", err);

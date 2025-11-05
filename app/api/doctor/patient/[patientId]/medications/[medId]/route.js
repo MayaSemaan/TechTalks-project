@@ -3,45 +3,13 @@ import connectToDB from "../../../../../../../lib/db.js";
 import Medication from "../../../../../../../models/Medication.js";
 import { authenticate } from "../../../../../../../middlewares/auth.js";
 import mongoose from "mongoose";
-import { randomUUID } from "crypto";
-
-// ---------- Helpers ----------
-const parseDateSafe = (val) => {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
-};
-
-const toISOStringSafe = (val) => {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-};
-
-// ---------- Frequency formatter ----------
-const formatFrequency = ({ schedule, customInterval }) => {
-  schedule = schedule || "daily";
-  let ci = customInterval;
-
-  // parse string if needed
-  if (typeof ci === "string") {
-    try {
-      ci = JSON.parse(ci);
-    } catch {
-      ci = null;
-    }
-  }
-
-  // for custom schedule, ensure defaults
-  if (schedule === "custom") {
-    if (!ci || !ci.number || !ci.unit) ci = { number: 1, unit: "day" };
-    return `Every ${Number(ci.number)} ${ci.unit}${
-      Number(ci.number) > 1 ? "s" : ""
-    }`;
-  }
-
-  return schedule.charAt(0).toUpperCase() + schedule.slice(1);
-};
+import crypto from "crypto";
+import {
+  parseDateSafe,
+  normalizeTime,
+  formatFrequency,
+  shouldGenerateDose,
+} from "../../../../../../../lib/medicationHelpers.js";
 
 // ---------- GET single medication ----------
 export async function GET(req, { params }) {
@@ -51,10 +19,7 @@ export async function GET(req, { params }) {
 
     const { patientId, medId } = params;
     if (!mongoose.Types.ObjectId.isValid(medId))
-      return NextResponse.json(
-        { error: "Invalid medication ID" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
     const med = await Medication.findById(medId);
     if (!med)
@@ -63,50 +28,92 @@ export async function GET(req, { params }) {
         { status: 404 }
       );
 
+    // Authorization
     if (user.role !== "doctor" && med.userId.toString() !== user._id.toString())
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     if (med.userId.toString() !== patientId)
       return NextResponse.json(
-        { error: "Medication does not belong to this patient" },
+        { error: "Medication not for this patient" },
         { status: 403 }
       );
 
     const medObj = med.toObject();
-    const safeDoses = Array.isArray(medObj.doses) ? medObj.doses : [];
+    const todayISO = new Date().toISOString().split("T")[0];
 
-    // normalize customInterval
+    const uniqueTimes = Array.from(
+      new Set((medObj.times || []).map(normalizeTime))
+    );
+
+    const existingDoses = (medObj.doses || []).map((d) => ({
+      doseId: d.doseId || crypto.randomUUID(),
+      time: normalizeTime(d.time),
+      taken: d.taken ?? null,
+      date: d.date ? new Date(d.date).toISOString().split("T")[0] : todayISO,
+    }));
+
+    const virtualDoses = shouldGenerateDose(medObj, new Date())
+      ? uniqueTimes
+          .filter(
+            (t) =>
+              !existingDoses.some((d) => d.date === todayISO && d.time === t)
+          )
+          .map((t) => ({
+            doseId: `${todayISO}-${t}-${medObj._id}`,
+            date: todayISO,
+            time: t,
+            taken: null,
+          }))
+      : [];
+
+    const doseMap = new Map();
+    [...existingDoses, ...virtualDoses].forEach((d) => {
+      const key = `${d.date}-${d.time}`;
+      if (
+        !doseMap.has(key) ||
+        (doseMap.get(key).taken === null && d.taken !== null)
+      ) {
+        doseMap.set(key, d);
+      }
+    });
+
+    const finalDoses = Array.from(doseMap.values()).sort((a, b) =>
+      a.time.localeCompare(b.time)
+    );
+
+    // ----- Normalize customInterval -----
+    const ci = medObj.customInterval || {};
     const customInterval =
       medObj.schedule === "custom"
         ? {
-            number: Number(medObj.customInterval?.number) || 1,
-            unit: medObj.customInterval?.unit || "day",
+            number: Number(ci.number ?? 1),
+            unit: ["day", "week", "month"].includes(ci.unit) ? ci.unit : "day",
           }
         : null;
 
-    const responseMed = {
-      _id: medObj._id,
-      name: medObj.name,
-      dosage: medObj.dosage,
-      unit: medObj.unit,
-      type: medObj.type,
-      schedule: medObj.schedule || "daily",
-      customInterval,
-      frequency: formatFrequency({ schedule: medObj.schedule, customInterval }),
-      startDate: toISOStringSafe(medObj.startDate),
-      endDate: toISOStringSafe(medObj.endDate),
-      reminders: !!medObj.reminders,
-      notes: medObj.notes || "",
-      times: medObj.times || [],
-      filteredDoses: safeDoses.map((d) => ({
-        doseId: d.doseId || randomUUID(),
-        time: d.time || null,
-        taken: d.taken ?? null,
-        date: toISOStringSafe(d.date),
-      })),
-    };
-
-    return NextResponse.json({ medication: responseMed });
+    return NextResponse.json({
+      medication: {
+        _id: medObj._id,
+        name: medObj.name,
+        dosage: medObj.dosage,
+        unit: medObj.unit,
+        type: medObj.type,
+        schedule: medObj.schedule || "daily",
+        customInterval,
+        frequency: formatFrequency({
+          schedule: medObj.schedule,
+          customInterval,
+        }),
+        startDate: medObj.startDate
+          ? new Date(medObj.startDate).toISOString()
+          : null,
+        endDate: medObj.endDate ? new Date(medObj.endDate).toISOString() : null,
+        reminders: !!medObj.reminders,
+        notes: medObj.notes || "",
+        times: uniqueTimes,
+        filteredDoses: finalDoses,
+      },
+    });
   } catch (err) {
     console.error("❌ GET medication error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -118,7 +125,6 @@ export async function PUT(req, { params }) {
   try {
     const user = await authenticate(req);
     await connectToDB();
-
     if (user.role !== "doctor")
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
@@ -132,36 +138,28 @@ export async function PUT(req, { params }) {
         { error: "Medication not found" },
         { status: 404 }
       );
-
     if (med.userId.toString() !== patientId)
       return NextResponse.json(
-        { error: "Medication does not belong to this patient" },
+        { error: "Medication not for this patient" },
         { status: 403 }
       );
 
     const data = await req.json();
 
-    // normalize customInterval
-    let customInterval = null;
+    // Normalize customInterval
     if (data.schedule === "custom") {
       const ci =
         typeof data.customInterval === "string"
-          ? (() => {
-              try {
-                return JSON.parse(data.customInterval);
-              } catch {
-                return null;
-              }
-            })()
+          ? JSON.parse(data.customInterval)
           : data.customInterval;
-      customInterval = {
-        number: Number(ci?.number) || 1,
-        unit: ci?.unit || "day",
+      med.customInterval = {
+        number: Number(ci?.number ?? 1),
+        unit: ["day", "week", "month"].includes(ci?.unit) ? ci.unit : "day",
       };
-    }
+    } else med.customInterval = null;
 
-    // update fields
-    const fields = [
+    // Update other fields
+    [
       "name",
       "dosage",
       "unit",
@@ -172,52 +170,35 @@ export async function PUT(req, { params }) {
       "startDate",
       "endDate",
       "times",
-    ];
-    fields.forEach((f) => {
-      if (data[f] !== undefined)
-        med[f] = f.includes("Date") ? parseDateSafe(data[f]) : data[f];
+    ].forEach((f) => {
+      if (data[f] !== undefined) {
+        med[f] =
+          f === "startDate" || f === "endDate"
+            ? parseDateSafe(data[f]) || null
+            : data[f];
+      }
     });
-    med.customInterval = customInterval;
+
+    // Deduplicate doses
+    if (Array.isArray(med.doses)) {
+      const map = new Map();
+      med.doses.forEach((d) => {
+        const date =
+          d.date instanceof Date ? d.date.toISOString().split("T")[0] : d.date;
+        const time = normalizeTime(d.time);
+        const key = `${date}-${time}`;
+        if (
+          !map.has(key) ||
+          (map.get(key).taken === null && d.taken !== null)
+        ) {
+          map.set(key, { ...d, date, time });
+        }
+      });
+      med.doses = Array.from(map.values());
+    }
 
     await med.save({ validateBeforeSave: false });
-
-    const medObj = med.toObject();
-    const safeDoses = Array.isArray(medObj.doses) ? medObj.doses : [];
-
-    const normalizedInterval =
-      medObj.schedule === "custom"
-        ? {
-            number: Number(medObj.customInterval?.number) || 1,
-            unit: medObj.customInterval?.unit || "day",
-          }
-        : null;
-
-    const responseMed = {
-      _id: medObj._id,
-      name: medObj.name,
-      dosage: medObj.dosage,
-      unit: medObj.unit,
-      type: medObj.type,
-      schedule: medObj.schedule || "daily",
-      customInterval: normalizedInterval,
-      frequency: formatFrequency({
-        schedule: medObj.schedule,
-        customInterval: normalizedInterval,
-      }),
-      startDate: toISOStringSafe(medObj.startDate),
-      endDate: toISOStringSafe(medObj.endDate),
-      reminders: !!medObj.reminders,
-      notes: medObj.notes || "",
-      times: medObj.times || [],
-      filteredDoses: safeDoses.map((d) => ({
-        doseId: d.doseId || randomUUID(),
-        time: d.time || null,
-        taken: d.taken ?? null,
-        date: d.date ? new Date(d.date).toISOString() : null,
-      })),
-    };
-
-    return NextResponse.json({ medication: responseMed });
+    return NextResponse.json({ medication: med });
   } catch (err) {
     console.error("❌ PUT medication error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });

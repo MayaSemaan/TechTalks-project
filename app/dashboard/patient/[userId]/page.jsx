@@ -3,13 +3,107 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
+import ChartComponent from "../../../components/ChartComponent.jsx";
 import {
   fetchDashboardData,
   updateDoseStatus,
   deleteMedication,
+  updateMedication,
 } from "../../../utils/api.js";
-import ChartComponent from "../../../components/ChartComponent.jsx";
+import EditPatientMedicationModal from "../../../components/EditPatientMedicationModal.jsx";
 
+function isMedicationForDate(med, selectedDate) {
+  if (!med || !med.startDate) return false;
+
+  const startDate = new Date(med.startDate);
+  const endDate = med.endDate ? new Date(med.endDate) : null;
+  const schedule = med.schedule || "daily";
+  const customValue = med.customValue || 1;
+  const unit = med.unit || "days";
+
+  // normalize dates (ignore time)
+  startDate.setHours(0, 0, 0, 0);
+  selectedDate.setHours(0, 0, 0, 0);
+
+  // outside range → not valid
+  if (endDate && selectedDate > endDate) return false;
+  if (selectedDate < startDate) return false;
+
+  const diffTime = selectedDate - startDate;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  switch (schedule) {
+    case "daily":
+      return true;
+
+    case "weekly":
+      return startDate.getDay() === selectedDate.getDay();
+
+    case "monthly":
+      return startDate.getDate() === selectedDate.getDate();
+
+    case "custom": {
+      if (unit === "days") {
+        // every N days
+        return diffDays % customValue === 0;
+      }
+
+      if (unit === "weeks") {
+        // every N weeks on same weekday
+        const diffWeeks = Math.floor(diffDays / 7);
+        return (
+          diffWeeks % customValue === 0 &&
+          startDate.getDay() === selectedDate.getDay()
+        );
+      }
+
+      if (unit === "months") {
+        // every N months on same day or nearest valid day
+        const diffMonths =
+          (selectedDate.getFullYear() - startDate.getFullYear()) * 12 +
+          (selectedDate.getMonth() - startDate.getMonth());
+
+        const sameDay =
+          selectedDate.getDate() === startDate.getDate() ||
+          // handle months with fewer days (e.g., Jan 31 → Feb 28)
+          (startDate.getDate() > 28 &&
+            selectedDate.getDate() >= 28 &&
+            selectedDate.getMonth() % customValue === 0);
+
+        return diffMonths % customValue === 0 && sameDay;
+      }
+
+      return false;
+    }
+
+    default:
+      return false;
+  }
+}
+
+// --- Helper: regenerate doses from times instantly ---
+function regenerateDosesFromTimes(times, med) {
+  if (!Array.isArray(times) || times.length === 0) return med.doses || [];
+
+  const startDate = new Date(med.startDate);
+  const endDate = new Date(med.endDate || startDate);
+  const doses = [];
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    for (const t of times) {
+      doses.push({
+        doseId: `${d.toISOString()}-${t}`,
+        date: new Date(d),
+        time: t,
+        taken: null,
+      });
+    }
+  }
+
+  return doses;
+}
+
+// ---------- Dynamic Imports for Charts ----------
 const ResponsiveContainer = dynamic(
   () => import("recharts").then((m) => m.ResponsiveContainer),
   { ssr: false }
@@ -37,57 +131,68 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
   ssr: false,
 });
 
-export default function DashboardPage() {
+// ---------- Helper ----------
+export const formatDateNice = (date) => {
+  if (!date) return "N/A";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "N/A";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// ---------- Main Component ----------
+export default function PatientDashboardPage() {
   const { userId } = useParams();
   const router = useRouter();
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedToken = localStorage.getItem("token");
+      setToken(storedToken);
+    }
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
+    user: null,
     meds: [],
     reports: [],
     chartData: [],
     metrics: {},
   });
+  const [medSearch, setMedSearch] = useState("");
+  const [medFilterDay, setMedFilterDay] = useState("");
+  const [medStatusFilter, setMedStatusFilter] = useState("");
+  const [reportSearch, setReportSearch] = useState("");
+  const [reportDateFrom, setReportDateFrom] = useState("");
+  const [reportDateTo, setReportDateTo] = useState("");
+  const [editingMed, setEditingMed] = useState(null);
 
-  const [user, setUser] = useState({ role: "patient", id: null, name: "" });
-  const [loggedInUser, setLoggedInUser] = useState({
-    role: "patient",
-    id: null,
-  });
-
-  const [medFilters, setMedFilters] = useState({
-    status: "",
-    fromDate: "",
-    toDate: "",
-  });
-  const [reportFilters, setReportFilters] = useState({
-    fromDate: "",
-    toDate: "",
-  });
-
-  // --- LOAD DASHBOARD DATA ---
+  // --- Load Dashboard Data ---
   const loadData = async () => {
-    if (!userId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchDashboardData(userId, {});
-      if (!result.success) throw new Error(result.error);
+      const res = await fetchDashboardData(userId);
+      if (!res || res.error)
+        throw new Error(res?.error || "Failed to fetch dashboard");
 
-      setUser(result.user);
-      setLoggedInUser(result.loggedInUser || { role: "patient", id: null });
-
-      const medsWithConfirm = (result.medications || []).map((m) => ({
+      const medsWithConfirm = (res.medications || []).map((m) => ({
         ...m,
         showDeleteConfirm: false,
       }));
 
       setData({
+        user: res.user,
         meds: medsWithConfirm,
-        reports: result.reports || [],
-        chartData: result.chartData || [],
-        metrics: { adherencePercent: result.metrics.adherencePercent || 0 },
+        reports: res.reports || [],
+        chartData: res.chartData || [],
+        metrics: { adherencePercent: res.metrics?.adherencePercent || 0 },
       });
     } catch (err) {
       setError(err.message);
@@ -106,100 +211,259 @@ export default function DashboardPage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  const clearFilters = () => {
-    setMedFilters({ status: "", fromDate: "", toDate: "" });
-    setReportFilters({ fromDate: "", toDate: "" });
+  // --- Toggle Dose Status ---
+  const handleDoseToggle = async (medId, doseId, newStatus, doseDate) => {
+    // newStatus should be true / false / null
+    try {
+      // Optimistic UI update
+      setData((prev) => ({
+        ...prev,
+        meds: prev.meds.map((med) => {
+          if (med._id !== medId) return med;
+          const updatedDoses = med.filteredDoses.map((d) =>
+            d.doseId === doseId ? { ...d, taken: newStatus } : d
+          );
+          return { ...med, filteredDoses: updatedDoses };
+        }),
+      }));
+
+      // Call API, pass date of the dose
+      const result = await updateDoseStatus(medId, doseId, newStatus, doseDate);
+
+      if (!result.success) throw new Error(result.error || "Failed to update");
+
+      // Update dose from API response to be fully consistent
+      setData((prev) => ({
+        ...prev,
+        meds: prev.meds.map((med) => {
+          if (med._id !== medId) return med;
+          const updatedDoses = med.filteredDoses.map((d) =>
+            d.doseId === result.updatedDose.doseId
+              ? { ...d, ...result.updatedDose }
+              : d
+          );
+          return { ...med, filteredDoses: updatedDoses };
+        }),
+      }));
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+      loadData(); // fallback to refresh if API failed
+    }
   };
 
-  // --- TOGGLE DOSE STATUS ---
-  const handleDoseToggle = async (medId, doseId, currentStatus) => {
-    const newStatus = currentStatus === true ? false : true;
-    const result = await updateDoseStatus(medId, doseId, newStatus);
-    if (result.success) await loadData();
-  };
-
-  // --- DELETE MEDICATION ---
+  // --- Delete Medication ---
   const handleDeleteMedication = async (medId) => {
-    if (!(loggedInUser.role === "patient" && loggedInUser.id === userId))
-      return;
+    const confirmed = confirm(
+      "Are you sure you want to delete this medication?"
+    );
+    if (!confirmed) return;
+
     const result = await deleteMedication(medId);
     if (result.success) {
       setData((prev) => ({
         ...prev,
-        meds: prev.meds.filter((med) => med._id !== medId),
+        meds: prev.meds.filter((m) => m._id !== medId),
       }));
     }
   };
 
-  // --- FILTERED MEDS ---
+  // --- Save Edited Medication ---
+  // Inside PatientDashboardPage component
+  const handleSaveEdit = async (medData) => {
+    if (!medData?._id) {
+      alert("Medication ID is required");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/medications/${medData._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : undefined,
+        },
+        body: JSON.stringify(medData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update medication");
+
+      // ✅ Instantly update local state and recheck if the med is for selected day
+      setData((prev) => {
+        const updatedMeds = prev.meds.map((m) => {
+          if (m._id !== medData._id) return m;
+
+          const updatedMed = { ...m, ...data.medication };
+
+          const schedule = updatedMed.schedule || "daily";
+          const times = updatedMed.times || [];
+          const startDate = updatedMed.startDate
+            ? new Date(updatedMed.startDate)
+            : new Date();
+          const customInterval = updatedMed.customInterval || {
+            number: 1,
+            unit: "day",
+          };
+
+          const selectedDay = medFilterDay
+            ? new Date(medFilterDay)
+            : new Date();
+          const selectedDayStr = selectedDay.toISOString().split("T")[0];
+
+          // 🧠 Determine if medication is for the selected day
+          const diffTime = selectedDay - startDate;
+          if (diffTime < 0) {
+            updatedMed.filteredDoses = [];
+            updatedMed.notForSelectedDay = true;
+            return updatedMed;
+          }
+
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+          let isForToday = false;
+
+          switch (schedule) {
+            case "daily":
+              isForToday = true;
+              break;
+            case "weekly":
+              isForToday = startDate.getDay() === selectedDay.getDay();
+              break;
+            case "monthly":
+              isForToday = startDate.getDate() === selectedDay.getDate();
+              break;
+            case "custom":
+              const { number, unit } = customInterval;
+
+              if (unit === "day") {
+                isForToday = diffDays % number === 0;
+              } else if (unit === "week") {
+                const diffWeeks = Math.floor(diffDays / 7);
+                isForToday =
+                  diffWeeks % number === 0 &&
+                  selectedDay.getDay() === startDate.getDay();
+              } else if (unit === "month") {
+                const diffMonths =
+                  (selectedDay.getFullYear() - startDate.getFullYear()) * 12 +
+                  (selectedDay.getMonth() - startDate.getMonth());
+                isForToday =
+                  diffMonths % number === 0 &&
+                  selectedDay.getDate() === startDate.getDate();
+              }
+              break;
+          }
+
+          // 🕒 Build or clear doses based on result
+          if (isForToday) {
+            updatedMed.filteredDoses = times.map((time, idx) => ({
+              doseId: `${m._id}-${idx}-${selectedDayStr}`,
+              time,
+              date: selectedDay.toISOString(),
+              taken: null,
+            }));
+            updatedMed.notForSelectedDay = false;
+          } else {
+            updatedMed.filteredDoses = [];
+            updatedMed.notForSelectedDay = true;
+          }
+
+          return updatedMed;
+        });
+
+        return { ...prev, meds: updatedMeds };
+      });
+
+      console.log(
+        "✅ Medication and doses updated successfully with full schedule logic"
+      );
+    } catch (err) {
+      console.error("Update med error:", err);
+      alert(err.message);
+    }
+  };
+
+  // --- Filtered Medications ---
   const filteredMeds = useMemo(() => {
-    return data.meds.map((m) => {
-      let doses = m.filteredDoses || [];
+    const selectedDayStr = (medFilterDay ? new Date(medFilterDay) : new Date())
+      .toISOString()
+      .split("T")[0];
 
-      if (medFilters.fromDate)
-        doses = doses.filter(
-          (d) => new Date(d.date) >= new Date(medFilters.fromDate)
+    return data.meds
+      .map((med) => {
+        // 1️⃣ Get doses for selected day
+        let dosesForDay = [];
+
+        if (med.filteredDoses && med.filteredDoses.length > 0) {
+          dosesForDay = med.filteredDoses.filter((d) => {
+            const doseDay = new Date(d.date).toISOString().split("T")[0];
+            return doseDay === selectedDayStr;
+          });
+        }
+
+        // 2️⃣ If no doses exist for the day, generate from times
+        const selectedDate = new Date(selectedDayStr);
+
+        if (
+          isMedicationForDate(med, selectedDate) &&
+          (!dosesForDay || dosesForDay.length === 0) &&
+          med.times?.length > 0
+        ) {
+          dosesForDay = med.times.map((time, idx) => ({
+            doseId: `${med._id}-${idx}-${selectedDayStr}`,
+            time,
+            date: selectedDate.toISOString(),
+            taken: null,
+          }));
+        }
+
+        // 3️⃣ Deduplicate doses by doseId
+        const uniqueDoses = Array.from(
+          new Map(dosesForDay.map((d) => [d.doseId, d])).values()
         );
-      if (medFilters.toDate)
-        doses = doses.filter(
-          (d) => new Date(d.date) <= new Date(medFilters.toDate)
-        );
 
-      if (medFilters.status === "taken")
-        doses = doses.filter((d) => d.taken === true);
-      else if (medFilters.status === "missed")
-        doses = doses.filter((d) => d.taken === false);
+        // 4️⃣ Apply status filter
+        const filteredDoses = uniqueDoses.filter((d) => {
+          if (!medStatusFilter) return true;
+          if (medStatusFilter === "taken") return d.taken === true;
+          if (medStatusFilter === "missed") return d.taken === false;
+          if (medStatusFilter === "pending") return d.taken == null;
+          return true;
+        });
 
-      return { ...m, filteredDoses: doses };
-    });
-  }, [data.meds, medFilters]);
+        return {
+          ...med,
+          filteredDoses,
+        };
+      })
+      .filter((med) =>
+        med.name.toLowerCase().includes(medSearch.toLowerCase())
+      );
+  }, [data.meds, medSearch, medStatusFilter, medFilterDay]);
 
+  // --- Filtered Reports ---
   const filteredReports = useMemo(() => {
     return data.reports.filter((r) => {
-      const uploadedAt = new Date(r.uploadedAt);
-      if (
-        reportFilters.fromDate &&
-        uploadedAt < new Date(reportFilters.fromDate)
-      )
-        return false;
-      if (reportFilters.toDate && uploadedAt > new Date(reportFilters.toDate))
-        return false;
-      return true;
+      const titleMatch = r.title
+        ?.toLowerCase()
+        .includes(reportSearch.toLowerCase());
+      const from = reportDateFrom ? new Date(reportDateFrom) : null;
+      const to = reportDateTo ? new Date(reportDateTo) : null;
+      const date = r.uploadedAt ? new Date(r.uploadedAt) : null;
+      const dateMatch =
+        (!from || (date && date >= from)) && (!to || (date && date <= to));
+      return titleMatch && dateMatch;
     });
-  }, [data.reports, reportFilters]);
+  }, [data.reports, reportSearch, reportDateFrom, reportDateTo]);
 
-  // --- PIE CHART DATA ---
   const totalDoses = filteredMeds.flatMap((m) => m.filteredDoses || []);
   const totalTaken = totalDoses.filter((d) => d.taken === true).length;
   const totalMissed = totalDoses.filter((d) => d.taken === false).length;
-  const totalPending = totalDoses.filter(
-    (d) => d.taken === null || d.taken === undefined
-  ).length;
-
+  const totalPending = totalDoses.filter((d) => d.taken == null).length;
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
     colors: ["#3b82f6", "#f97316", "#9ca3af"],
-  };
-
-  const getNextScheduledDate = (med) => {
-    if (med.schedule === "everyday") return null;
-    if (!med.customInterval?.number || !med.customInterval?.unit) return null;
-
-    const start = new Date(med.startDate);
-    const last = new Date();
-    const next = new Date(start);
-
-    const unit = med.customInterval.unit.toLowerCase();
-    const number = med.customInterval.number;
-
-    while (next <= last) {
-      if (unit.includes("day")) next.setDate(next.getDate() + number);
-      else if (unit.includes("week")) next.setDate(next.getDate() + 7 * number);
-      else if (unit.includes("month")) next.setMonth(next.getMonth() + number);
-      else break;
-    }
-    return next;
   };
 
   if (loading) return <div className="p-6">Loading...</div>;
@@ -209,107 +473,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-blue-900">
-              {user.name ? `${user.name}'s Dashboard` : "Patient's Dashboard"}
-            </h1>
-            <span className="px-2 py-1 text-xs rounded bg-blue-200 text-blue-900">
-              {user.role.toUpperCase()}
-            </span>
-          </div>
-          <div className="text-lg font-semibold text-blue-900">
-            Adherence: {data.metrics.adherencePercent ?? "N/A"}%
-          </div>
+        <header className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-blue-900">
+            {data.user?.name || "Patient"}'s Dashboard
+          </h1>
         </header>
-
-        {/* Filters */}
-        <div className="flex justify-between items-center bg-white rounded-xl shadow-md p-4 mb-4 flex-wrap gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-blue-900 mb-2">
-              Medication Filters
-            </h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-2 flex-wrap">
-              <select
-                value={medFilters.status}
-                onChange={(e) =>
-                  setMedFilters({ ...medFilters, status: e.target.value })
-                }
-                className="border rounded p-2 text-black"
-              >
-                <option value="">All</option>
-                <option value="taken">Taken</option>
-                <option value="missed">Missed</option>
-              </select>
-              <input
-                type="date"
-                value={medFilters.fromDate}
-                onChange={(e) =>
-                  setMedFilters({ ...medFilters, fromDate: e.target.value })
-                }
-                className="border rounded p-2 text-black"
-              />
-              <input
-                type="date"
-                value={medFilters.toDate}
-                onChange={(e) =>
-                  setMedFilters({ ...medFilters, toDate: e.target.value })
-                }
-                className="border rounded p-2 text-black"
-              />
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-semibold text-blue-900 mb-2">
-              Report Filters
-            </h2>
-            <div className="flex flex-col sm:flex-row gap-4 mb-2 flex-wrap">
-              <input
-                type="date"
-                value={reportFilters.fromDate}
-                onChange={(e) =>
-                  setReportFilters({
-                    ...reportFilters,
-                    fromDate: e.target.value,
-                  })
-                }
-                className="border rounded p-2 text-black"
-              />
-              <input
-                type="date"
-                value={reportFilters.toDate}
-                onChange={(e) =>
-                  setReportFilters({ ...reportFilters, toDate: e.target.value })
-                }
-                className="border rounded p-2 text-black"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={clearFilters}
-              className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition"
-            >
-              Clear Filters
-            </button>
-            <button
-              onClick={() => router.push(`/patients/${userId}/medications`)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition"
-            >
-              Manage Medications
-            </button>
-          </div>
-        </div>
-
-        {/* Totals */}
-        <div className="bg-white shadow-md rounded-xl p-4 mb-4 flex gap-6 text-blue-900 font-semibold flex-wrap">
-          <div>Total Doses: {totalDoses.length}</div>
-          <div>Taken: {totalTaken}</div>
-          <div>Missed: {totalMissed}</div>
-          <div>Pending: {totalPending}</div>
-        </div>
 
         {/* Charts */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -319,27 +487,14 @@ export default function DashboardPage() {
             </h2>
             {data.chartData.length ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart
-                  data={data.chartData}
-                  margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-                >
+                <LineChart data={data.chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="taken"
-                    name="Taken"
-                    stroke="#3b82f6"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="missed"
-                    name="Missed"
-                    stroke="#f97316"
-                  />
+                  <Line type="monotone" dataKey="taken" stroke="#3b82f6" />
+                  <Line type="monotone" dataKey="missed" stroke="#f97316" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -348,122 +503,209 @@ export default function DashboardPage() {
           </div>
 
           <div className="bg-white shadow-md rounded-xl p-6">
-            <h2 className="font-semibold mb-4 text-blue-900">
-              Overall Summary
-            </h2>
+            <h2 className="font-semibold mb-4 text-blue-900">Summary</h2>
             <div className="w-full h-64">
-              <ChartComponent data={pieData} />
+              {totalDoses.length === 0 ? (
+                <p className="text-gray-600 text-center mt-24">
+                  No doses recorded.
+                </p>
+              ) : (
+                <ChartComponent data={pieData} />
+              )}
             </div>
           </div>
         </section>
 
-        {/* --- MEDICATION LIST --- */}
-        <div className="bg-white shadow-md rounded-xl p-6 space-y-4 mt-6">
-          <h2 className="font-semibold text-blue-900 mb-2">Medications</h2>
+        {/* Medications */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-blue-900">Medications</h2>
+
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row md:space-x-2 space-y-2 md:space-y-0 mb-4">
+            <input
+              type="text"
+              placeholder="Search medications..."
+              value={medSearch}
+              onChange={(e) => setMedSearch(e.target.value)}
+              className="w-full md:w-1/3 border border-gray-300 rounded px-3 py-1"
+            />
+            <input
+              type="date"
+              value={medFilterDay}
+              onChange={(e) => setMedFilterDay(e.target.value)}
+              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+            />
+            <select
+              value={medStatusFilter}
+              onChange={(e) => setMedStatusFilter(e.target.value)}
+              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+            >
+              <option value="">All Statuses</option>
+              <option value="taken">Taken</option>
+              <option value="missed">Missed</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+
+          {/* Medication Cards */}
           {filteredMeds.length === 0 ? (
-            <p className="text-gray-600">
-              No medications found for this filter.
-            </p>
+            <p className="text-gray-600">No medications found.</p>
           ) : (
-            filteredMeds.map((m) => {
-              const nextDate = getNextScheduledDate(m);
-              return (
+            <div className="flex flex-col space-y-4">
+              {filteredMeds.map((med) => (
                 <div
-                  key={m._id}
-                  className="border border-gray-200 rounded-2xl p-4 shadow-sm bg-blue-50 mb-4"
+                  key={med._id}
+                  className="bg-white shadow-lg rounded-xl p-4 flex flex-col justify-between hover:shadow-2xl transition"
                 >
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-lg text-blue-700">
-                      {m.name}
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                      {new Date(m.startDate).toLocaleDateString()} →{" "}
-                      {new Date(m.endDate).toLocaleDateString()}
-                    </span>
+                  {/* Medication Header */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-lg text-blue-900">
+                        {med.name}
+                      </p>
+                      <p className="text-gray-600 text-sm">
+                        {med.dosage} {med.unit} ({med.type})
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setEditingMed(med)}
+                        className="bg-yellow-400 text-white px-2 py-1 rounded hover:bg-yellow-500 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMedication(med._id)}
+                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
 
-                  <p className="text-sm text-gray-600 mb-1">
-                    {m.dosage} {m.unit} ({m.type})
-                  </p>
+                  {/* Doses */}
+                  <div className="space-y-1">
+                    {med.filteredDoses?.length > 0 ? (
+                      med.filteredDoses.map((d) => {
+                        const selectedDay = new Date(medFilterDay || new Date())
+                          .toISOString()
+                          .split("T")[0];
+                        const doseDay = new Date(d.date)
+                          .toISOString()
+                          .split("T")[0];
 
-                  {nextDate && (
-                    <p className="text-sm text-blue-700 mb-2">
-                      Next scheduled: {nextDate.toLocaleDateString()}
-                    </p>
-                  )}
+                        const isSelectedDay = selectedDay === doseDay;
 
-                  {m.filteredDoses.length ? (
-                    <ul className="space-y-1">
-                      {m.filteredDoses.map((d) => {
-                        const today = new Date();
-                        const start = new Date(m.startDate);
-                        const end = new Date(m.endDate);
-                        const isTodayActive =
-                          today >= new Date(start.setHours(0, 0, 0, 0)) &&
-                          today <= new Date(end.setHours(23, 59, 59, 999));
+                        let statusText = "Pending";
+                        let statusColor = "text-gray-600";
 
-                        let statusLabel = "not active today";
-                        let statusColor = "text-gray-500";
-
-                        if (isTodayActive) {
-                          if (m.schedule === "everyday") {
-                            if (d.taken === true) {
-                              statusLabel = "taken";
-                              statusColor = "text-green-600";
-                            } else if (d.taken === false) {
-                              statusLabel = "missed";
-                              statusColor = "text-red-600";
-                            } else {
-                              statusLabel = "pending";
-                              statusColor = "text-orange-500";
-                            }
-                          } else {
-                            statusLabel = "-";
-                            statusColor = "text-gray-400";
-                          }
+                        if (!isSelectedDay) {
+                          statusText = "Not for selected day";
+                          statusColor = "text-gray-400";
+                        } else if (d.taken === true) {
+                          statusText = "Taken";
+                          statusColor = "text-blue-600";
+                        } else if (d.taken === false) {
+                          statusText = "Missed";
+                          statusColor = "text-red-600";
                         }
 
                         return (
-                          <li
-                            key={d.doseId}
-                            className="flex justify-between items-center border-b border-gray-100 py-1"
+                          <div
+                            key={d.doseId || d.time}
+                            className="flex justify-between items-center text-sm"
                           >
-                            <span className="text-gray-800">{d.time}</span>
-                            <button
-                              onClick={() =>
-                                handleDoseToggle(m._id, d.doseId, d.taken)
-                              }
-                              disabled={
-                                !(
-                                  (loggedInUser.role === "patient" &&
-                                    loggedInUser.id === userId) ||
-                                  loggedInUser.role === "family"
-                                )
-                              }
-                              className={`font-semibold ${statusColor} transition`}
-                            >
-                              {statusLabel}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="text-gray-500 text-sm">
-                      No doses in this filter.
-                    </p>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                            <span>
+                              {d.time || "-"} –{" "}
+                              <span className={`font-semibold ${statusColor}`}>
+                                {statusText}
+                              </span>
+                            </span>
 
-        {/* --- REPORTS --- */}
-        <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
-          <h2 className="font-semibold text-blue-900 mb-2">Recent Reports</h2>
+                            {/* Show buttons only if the dose belongs to selected day */}
+                            {isSelectedDay && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() =>
+                                    handleDoseToggle(
+                                      med._id,
+                                      d.doseId,
+                                      true,
+                                      d.date
+                                    )
+                                  }
+                                  className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
+                                >
+                                  Taken
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDoseToggle(
+                                      med._id,
+                                      d.doseId,
+                                      false,
+                                      d.date
+                                    )
+                                  }
+                                  className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+                                >
+                                  Missed
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-gray-500 text-sm">
+                        No doses for selected day
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Edit Medication Modal */}
+        {editingMed && (
+          <EditPatientMedicationModal
+            medId={editingMed._id}
+            initialData={editingMed}
+            token={token} // ✅ pass token
+            onClose={() => setEditingMed(null)}
+            onSave={handleSaveEdit}
+          />
+        )}
+
+        {/* Reports */}
+        <section className="bg-white shadow-md rounded-xl p-6 space-y-4">
+          <h2 className="font-semibold text-blue-900 mb-2">Reports</h2>
+          <div className="flex flex-col md:flex-row md:space-x-2 space-y-2 md:space-y-0 mb-2">
+            <input
+              type="text"
+              placeholder="Search Reports..."
+              value={reportSearch}
+              onChange={(e) => setReportSearch(e.target.value)}
+              className="w-full md:w-1/3 border border-gray-300 rounded px-3 py-1"
+            />
+            <input
+              type="date"
+              value={reportDateFrom}
+              onChange={(e) => setReportDateFrom(e.target.value)}
+              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+            />
+            <input
+              type="date"
+              value={reportDateTo}
+              onChange={(e) => setReportDateTo(e.target.value)}
+              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+            />
+          </div>
+
           {filteredReports.length === 0 ? (
-            <p className="text-gray-600">No reports found for this filter.</p>
+            <p className="text-gray-600">No reports found.</p>
           ) : (
             <div className="grid gap-4">
               {filteredReports.map((r) => (
@@ -479,11 +721,6 @@ export default function DashboardPage() {
                         ? new Date(r.uploadedAt).toLocaleString()
                         : "N/A"}
                     </p>
-                    {r.role && (
-                      <span className="px-1 py-0.5 text-xs rounded bg-blue-100 text-blue-900 mt-1 w-max">
-                        {r.role.toUpperCase()}
-                      </span>
-                    )}
                   </div>
                   <div className="flex gap-2">
                     <a
@@ -506,7 +743,7 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

@@ -1,12 +1,12 @@
 {
-  "app\\dashboard\\doctor\\[doctorId]\\patient\\[patientId]\\page.jsx -> recharts": {
-    "id": "app\\dashboard\\doctor\\[doctorId]\\patient\\[patientId]\\page.jsx -> recharts",
+  "app\\dashboard\\family\\[familyId]\\patient\\[patientId]\\page.jsx -> recharts": {
+    "id": "app\\dashboard\\family\\[familyId]\\patient\\[patientId]\\page.jsx -> recharts",
     "files": [
       "static/chunks/_app-pages-browser_node_modules_recharts_es6_index_js.js"
     ]
   },
-  "app\\dashboard\\family\\[familyId]\\patient\\[patientId]\\page.jsx -> recharts": {
-    "id": "app\\dashboard\\family\\[familyId]\\patient\\[patientId]\\page.jsx -> recharts",
+  "app\\dashboard\\patient\\[userId]\\page.jsx -> recharts": {
+    "id": "app\\dashboard\\patient\\[userId]\\page.jsx -> recharts",
     "files": [
       "static/chunks/_app-pages-browser_node_modules_recharts_es6_index_js.js"
     ]

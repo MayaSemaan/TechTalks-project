@@ -1,255 +1,151 @@
-// app/api/doctor/patient/[patientId]/medications/route.js
-
 import { NextResponse } from "next/server";
-import connectToDB from "../../../../../../lib/db.js";
-import Medication from "../../../../../../models/Medication.js";
-import User from "../../../../../../models/User.js";
-import { authenticate } from "../../../../../../middlewares/auth.js";
+import connectToDB from "../../../../../../../lib/db.js";
+import Medication from "../../../../../../../models/Medication.js";
+import { authenticate } from "../../../../../../../middlewares/auth.js";
 import crypto from "crypto";
-import mongoose from "mongoose";
 
 // ---------- Helpers ----------
-const parseDateSafe = (val) => {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
+const parseDateSafe = (val) => (val ? new Date(val) : null);
+const toISOStringSafe = (val) => (val ? new Date(val).toISOString() : null);
+
+const normalizeCustomInterval = (med) => {
+  if (med.schedule !== "custom") return null;
+  const number = Number(med.customInterval?.number) || 1;
+  const unit = ["day", "week", "month"].includes(med.customInterval?.unit)
+    ? med.customInterval.unit
+    : "day";
+  return { number, unit };
 };
 
-const toISOStringSafe = (val) => {
-  if (!val) return null;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-};
-
-// ---------- Universal frequency formatter ----------
-const formatFrequency = ({ schedule, customInterval }) => {
-  schedule = schedule || "daily";
-  let ci = customInterval;
-
-  if (typeof ci === "string") {
-    try {
-      ci = JSON.parse(ci);
-    } catch {
-      ci = null;
-    }
-  }
-
-  if (schedule === "custom") {
-    if (!ci || !ci.number || !ci.unit) ci = { number: 1, unit: "day" };
-    return `Every ${Number(ci.number)} ${ci.unit}${
-      Number(ci.number) > 1 ? "s" : ""
-    }`;
-  }
-
-  return schedule.charAt(0).toUpperCase() + schedule.slice(1);
-};
-
-// ---------- Validation ----------
-function validateMedicationData(data) {
-  if (!data.name || typeof data.name !== "string" || data.name.trim() === "")
-    throw new Error("Invalid medication name");
-  if (isNaN(data.dosage) || data.dosage <= 0)
-    throw new Error("Invalid dosage value");
-  if (!Array.isArray(data.times) || data.times.length === 0)
-    throw new Error("At least one valid time is required");
-
-  data.times.forEach((t) => {
-    if (!/^([0-1]\d|2[0-3]):([0-5]\d)$/.test(t))
-      throw new Error("Invalid time format in times array");
-  });
-}
-
-// ---------- Scheduling helper: shouldGenerateDose ----------
 const shouldGenerateDose = (med, day) => {
   if (!med.startDate) return false;
-  const start = new Date(med.startDate);
-  const d = new Date(day);
 
-  // Normalize times
+  // ensure startDate and day are Date objects without time
+  const start = new Date(med.startDate);
   start.setHours(0, 0, 0, 0);
+  const d = new Date(day);
   d.setHours(0, 0, 0, 0);
 
   if (d < start) return false;
 
-  const schedule = med.schedule || "daily";
-
-  switch (schedule) {
+  switch (med.schedule) {
     case "daily":
       return true;
+
     case "weekly":
-      // check day-of-week relative to start
       return d.getDay() === start.getDay();
+
     case "monthly":
       return d.getDate() === start.getDate();
+
     case "custom": {
-      const ci = med.customInterval || {};
-      const intervalNum = Number(ci.number) || 1;
-      const intervalUnit = ci.unit || "day";
-      if (intervalUnit === "day") {
-        const diff = Math.floor((d - start) / (1000 * 60 * 60 * 24));
-        return diff >= 0 && diff % intervalNum === 0;
-      } else if (intervalUnit === "week") {
-        const diff = Math.floor((d - start) / (1000 * 60 * 60 * 24 * 7));
-        return diff >= 0 && diff % intervalNum === 0;
-      } else if (intervalUnit === "month") {
-        const months =
-          (d.getFullYear() - start.getFullYear()) * 12 +
-          (d.getMonth() - start.getMonth());
-        return (
-          months >= 0 &&
-          months % intervalNum === 0 &&
-          d.getDate() === start.getDate()
-        );
+      if (!med.customInterval) return false;
+      const { number, unit } = med.customInterval;
+      let diff = 0;
+
+      switch (unit) {
+        case "day":
+          diff = Math.floor((d - start) / (1000 * 60 * 60 * 24));
+          break;
+        case "week":
+          diff = Math.floor((d - start) / (1000 * 60 * 60 * 24 * 7));
+          break;
+        case "month":
+          diff =
+            (d.getFullYear() - start.getFullYear()) * 12 +
+            (d.getMonth() - start.getMonth());
+          break;
       }
-      return false;
+
+      return diff >= 0 && diff % number === 0;
     }
+
     default:
       return false;
   }
 };
 
-// ---------- Generate scheduled doses for a given day ----------
-const generateDosesForDay = (med, day) => {
-  // day is a Date (only day precision used)
-  const selected = new Date(day);
-  selected.setHours(0, 0, 0, 0);
-
-  const start = med.startDate ? new Date(med.startDate) : null;
-  const end = med.endDate ? new Date(med.endDate) : null;
-
-  if (start) {
-    const st = new Date(start);
-    st.setHours(0, 0, 0, 0);
-    if (selected < st) return [];
-  }
-  if (end) {
-    const en = new Date(end);
-    en.setHours(0, 0, 0, 0);
-    if (selected > en) return [];
-  }
-
-  if (!shouldGenerateDose(med, selected)) return [];
-
-  // create dose objects (one per time)
-  return (Array.isArray(med.times) ? med.times : []).map((time, idx) => {
-    // doseId format: ISO-idx (matches frontend expectations)
-    const iso = selected.toISOString();
-    return {
-      doseId: `${iso}-${idx}`,
-      date: iso,
-      time,
-      taken: null,
-    };
-  });
-};
-
-// ---------- GET all medications (with generated doses for selected day) ----------
-// ---------- GET all medications (filtered to selected day) ----------
+// ---------- GET ----------
 export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
     await connectToDB();
-    const { patientId } = params;
 
+    const { patientId } = params;
     if (!["doctor", "family"].includes(user.role))
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-    // ?day=YYYY-MM-DD (optional)
     const url = new URL(req.url);
     const dayParam = url.searchParams.get("day");
-    let selectedDay = dayParam ? parseDateSafe(dayParam) : new Date();
-    if (!selectedDay) selectedDay = new Date();
+    const selectedDay = dayParam ? parseDateSafe(dayParam) : new Date();
     selectedDay.setHours(0, 0, 0, 0);
+    const dayISO = selectedDay.toISOString().split("T")[0];
 
     const meds = await Medication.find({ userId: patientId }).sort({
       createdAt: -1,
     });
 
-    const formatted = meds.map((m) => {
-      const medObj = m.toObject({ flattenMaps: true });
-      const safeDoses = Array.isArray(medObj.doses) ? medObj.doses : [];
+    const formatted = meds.map((med) => {
+      const medObj = med.toObject({ flattenMaps: true });
 
-      // Normalize existing doses
-      const existing = safeDoses.map((d) => ({
-        doseId: d.doseId || crypto.randomUUID(),
-        time: d.time || null,
-        taken: d.taken ?? null,
-        date: d.date ? new Date(d.date).toISOString() : null,
-      }));
-
-      // Generate doses for the selected day if valid
-      const generated = generateDosesForDay(medObj, selectedDay);
-
-      // Merge with any existing doses that are specifically for the selected day
-      const mergedForSelectedDay = [];
-
-      const selectedStart = new Date(selectedDay);
-      selectedStart.setHours(0, 0, 0, 0);
-
-      existing.forEach((d) => {
-        if (!d.date) return;
-        const doseDate = new Date(d.date);
-        doseDate.setHours(0, 0, 0, 0);
-        if (doseDate.getTime() === selectedStart.getTime()) {
-          mergedForSelectedDay.push(d);
-        }
-      });
-
-      generated.forEach((g) => {
-        const exists = mergedForSelectedDay.some(
-          (x) =>
-            x.time === g.time &&
-            new Date(x.date).toISOString() === new Date(g.date).toISOString()
-        );
-        if (!exists) mergedForSelectedDay.push(g);
-      });
-
-      // Sort doses for display
-      mergedForSelectedDay.sort((a, b) =>
-        (a.time || "00:00").localeCompare(b.time || "00:00")
-      );
-
+      // Normalize custom interval
       const customInterval =
-        medObj.schedule === "custom" &&
-        medObj.customInterval &&
-        typeof medObj.customInterval === "object"
-          ? {
-              number: Number(medObj.customInterval.number) || 1,
-              unit: medObj.customInterval.unit || "day",
-            }
-          : medObj.schedule === "custom"
-          ? { number: 1, unit: "day" }
+        medObj.schedule === "custom" && medObj.customInterval
+          ? medObj.customInterval
           : null;
 
+      // Ensure startDate is Date object
+      medObj.startDate = new Date(medObj.startDate);
+
+      // Unique times per day
+      const uniqueTimes = Array.from(
+        new Set((medObj.times || []).map((t) => t.trim()))
+      );
+
+      // Map existing doses by date+time
+      const doseMap = new Map();
+      (medObj.doses || []).forEach((d) => {
+        if (!d.date || !d.time) return;
+        const key = `${toISOStringSafe(d.date).split("T")[0]}-${d.time}`;
+        doseMap.set(key, { ...d, doseId: d.doseId || crypto.randomUUID() });
+      });
+
+      // Generate virtual doses for selected day
+      const virtualDoses = shouldGenerateDose(
+        { ...medObj, customInterval },
+        selectedDay
+      )
+        ? uniqueTimes
+            .filter((time) => !doseMap.has(`${dayISO}-${time}`))
+            .map((time) => ({
+              doseId: `${dayISO}-${time}-${medObj._id}`,
+              date: dayISO,
+              time,
+              taken: null,
+            }))
+        : [];
+
+      // Combine existing and virtual doses
+      const allDoses = [...doseMap.values(), ...virtualDoses].sort((a, b) =>
+        (a.time || "").localeCompare(b.time || "")
+      );
+
       return {
-        _id: medObj._id,
-        name: medObj.name,
-        dosage: medObj.dosage,
-        unit: medObj.unit,
-        type: medObj.type,
-        schedule: medObj.schedule || "daily",
+        ...medObj,
         customInterval,
-        frequency: formatFrequency({
-          schedule: medObj.schedule,
-          customInterval,
-        }),
-        startDate: toISOStringSafe(medObj.startDate),
-        endDate: toISOStringSafe(medObj.endDate),
-        reminders: !!medObj.reminders,
-        notes: medObj.notes || "",
-        times: medObj.times || [],
-        filteredDoses: mergedForSelectedDay,
+        filteredDoses: allDoses,
       };
     });
 
-    return NextResponse.json(formatted);
+    return NextResponse.json({ success: true, medications: formatted });
   } catch (err) {
     console.error("❌ GET medications error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// ---------- POST new medication ----------
+// ---------- POST ----------
+// ---------- POST ----------
 export async function POST(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -264,38 +160,60 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
 
     const data = await req.json();
-    validateMedicationData(data);
 
     const startDate = parseDateSafe(data.startDate) || new Date();
-    const doses = (Array.isArray(data.times) ? data.times : []).map((time) => ({
-      doseId: crypto.randomUUID(),
-      time,
-      taken: null,
-      date: startDate,
-    }));
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = data.endDate ? parseDateSafe(data.endDate) : startDate;
+    endDate.setHours(0, 0, 0, 0);
 
-    const customInterval =
-      data.schedule === "custom" &&
-      data.customInterval &&
-      typeof data.customInterval === "object"
-        ? {
-            number: Number(data.customInterval.number) || 1,
-            unit: data.customInterval.unit || "day",
-          }
-        : data.schedule === "custom"
-        ? { number: 1, unit: "day" }
-        : null;
+    const schedule = data.schedule || "daily";
+
+    // Normalize custom interval
+    let customInterval = null;
+    if (schedule === "custom") {
+      const raw = data.customInterval || {};
+      const number = Number(raw.number) || 1;
+      const unit = ["day", "week", "month"].includes(raw.unit)
+        ? raw.unit
+        : "day";
+      customInterval = { number, unit };
+    }
+
+    // Unique times per day
+    const uniqueTimes = Array.from(
+      new Set((data.times || []).map((t) => t.trim()))
+    );
+
+    // Generate doses
+    const doses = [];
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      if (
+        shouldGenerateDose({ startDate, schedule, customInterval }, current)
+      ) {
+        uniqueTimes.forEach((time) => {
+          doses.push({
+            doseId: crypto.randomUUID(),
+            date: current.toISOString().split("T")[0],
+            time,
+            taken: null,
+          });
+        });
+      }
+      current.setDate(current.getDate() + 1);
+    }
 
     const medData = {
-      name: data.name.trim(),
+      name: (data.name || "").trim(),
       dosage: Number(data.dosage),
       unit: data.unit || "mg",
       type: data.type || "tablet",
-      schedule: data.schedule || "daily",
+      schedule,
       customInterval,
-      times: data.times,
+      times: uniqueTimes,
       startDate,
-      endDate: parseDateSafe(data.endDate),
+      endDate,
       reminders: !!data.reminders,
       notes: data.notes || "",
       userId: patientId,
@@ -303,31 +221,11 @@ export async function POST(req, { params }) {
     };
 
     const med = await Medication.create(medData);
-    const safeDoses = Array.isArray(med.doses) ? med.doses : [];
 
-    const responseMed = {
-      _id: med._id,
-      name: med.name,
-      dosage: med.dosage,
-      unit: med.unit,
-      type: med.type,
-      schedule: med.schedule,
-      customInterval,
-      frequency: formatFrequency({ schedule: med.schedule, customInterval }),
-      startDate: toISOStringSafe(med.startDate),
-      endDate: toISOStringSafe(med.endDate),
-      reminders: !!med.reminders,
-      notes: med.notes || "",
-      times: med.times || [],
-      filteredDoses: safeDoses.map((d) => ({
-        doseId: d.doseId || crypto.randomUUID(),
-        time: d.time || null,
-        taken: d.taken ?? null,
-        date: toISOStringSafe(d.date),
-      })),
-    };
-
-    return NextResponse.json({ medication: responseMed }, { status: 201 });
+    return NextResponse.json(
+      { success: true, medication: med },
+      { status: 201 }
+    );
   } catch (err) {
     console.error("❌ POST medications error:", err);
     return NextResponse.json({ error: err.message }, { status: 400 });
