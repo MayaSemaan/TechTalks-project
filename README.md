@@ -1,30 +1,15 @@
-# TechTalks Project & Medication Management
+# Smart Medicine Reminder with Family Alerts (Web)
 
-This is a **Next.js fullstack project** with API routes for managing medications.  
-It includes full CRUD operations for a `Medication` model and a dashboard for patients.
+This is a **Next.js fullstack project** with API routes for managing medications.
 
 ---
-
-## **Frontend (Next.js)**
-
-This frontend is built with Next.js (app directory, Tailwind CSS, Recharts, etc.)  
-It provides:
-
-- Patient dashboard
-- Medication list UI
-- Recent reports view
-- Adherence charts
 
 ### Getting Started
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-<<<<<<< HEAD
 ```
-=======
-# 
->>>>>>> feature/medication-ui
+
+### Session Behavior Note
+
+The app uses localStorage to store the logged-in user session. Logging in as a different user in a new tab will overwrite the previous session and log out the first user. This is expected behavior.

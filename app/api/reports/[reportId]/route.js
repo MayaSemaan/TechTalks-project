@@ -178,7 +178,6 @@ export async function PUT(req, { params }) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-
 // ------------------------
 // DELETE a report
 // ------------------------
@@ -187,21 +186,26 @@ export async function DELETE(req, { params }) {
     const user = await authenticate(req);
     await connectToDB();
 
-    if (user.role !== "doctor") {
+    // Find the report first
+    const report = await Report.findById(params.reportId);
+
+    if (!report) {
+      return NextResponse.json({ error: "Report not found" }, { status: 404 });
+    }
+
+    const isDoctor =
+      user.role === "doctor" &&
+      report.doctor.toString() === user._id.toString();
+    const isPatient =
+      user.role === "patient" &&
+      report.patient.toString() === user._id.toString();
+
+    // Only doctor of this report OR the patient of this report can delete
+    if (!isDoctor && !isPatient) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const report = await Report.findOneAndDelete({
-      _id: params.reportId,
-      doctor: user._id,
-    });
-
-    if (!report) {
-      return NextResponse.json(
-        { error: "Report not found or unauthorized" },
-        { status: 404 }
-      );
-    }
+    await report.deleteOne();
 
     return NextResponse.json({ success: true });
   } catch (err) {

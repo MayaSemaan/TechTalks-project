@@ -79,6 +79,7 @@ export default function SingleReportPage() {
     const fromPatientId = searchParams.get("patientId");
     const fromFamilyId = searchParams.get("familyId");
 
+    // Go back to the correct dashboard depending on query params
     if (fromDoctorId && fromPatientId) {
       router.replace(
         `/dashboard/doctor/${fromDoctorId}/patient/${fromPatientId}`
@@ -93,24 +94,17 @@ export default function SingleReportPage() {
       return;
     }
 
+    if (fromPatientId && !fromDoctorId && !fromFamilyId) {
+      router.replace(`/dashboard/patient/${fromPatientId}`);
+      return;
+    }
+
+    // fallback: use role from token
     try {
       const decoded = jwt_decode(token);
       const role = decoded.role;
       const userId = decoded.id || decoded._id;
-
-      switch (role) {
-        case "doctor":
-          router.replace(`/dashboard/doctor/${userId}`);
-          break;
-        case "patient":
-          router.replace(`/dashboard/patient/${userId}`);
-          break;
-        case "family":
-          router.replace(`/dashboard/family/${userId}`);
-          break;
-        default:
-          router.replace("/dashboard");
-      }
+      router.replace(`/dashboard/${role}/${userId}`);
     } catch {
       router.replace("/dashboard");
     }

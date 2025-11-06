@@ -36,6 +36,7 @@ export default function EditPatientMedicationModal({
     times: [""], // Default one time for new med
     notes: "",
     frequency: "every day",
+    reminders: false,
   });
   const [loading, setLoading] = useState(!!medId);
   const [error, setError] = useState("");
@@ -81,6 +82,7 @@ export default function EditPatientMedicationModal({
             ? data.medication.times
             : [""],
           notes: data.medication.notes || "",
+          reminders: data.medication.reminders || false,
         };
         fetched.frequency = formatFrequency({
           schedule: fetched.schedule,
@@ -107,6 +109,7 @@ export default function EditPatientMedicationModal({
       endDate: formatDateString(initialData.endDate),
       customInterval: initialData.customInterval || { number: 1, unit: "day" },
       times: initialData.times?.length ? initialData.times : [""],
+      reminders: initialData.reminders || false,
     };
     initMed.frequency = formatFrequency({
       schedule: initMed.schedule,
@@ -193,6 +196,7 @@ export default function EditPatientMedicationModal({
       startDate: med.startDate ? new Date(med.startDate).toISOString() : null,
       endDate: med.endDate ? new Date(med.endDate).toISOString() : null,
       customInterval: med.schedule === "custom" ? med.customInterval : null,
+      reminders: Boolean(med.reminders),
     };
 
     if (isEditMode) payload._id = medId || initialData?._id;
@@ -371,7 +375,7 @@ export default function EditPatientMedicationModal({
 
           {/* Times */}
           <div>
-            <label className="block font-medium">Times</label>
+            <label className="block font-medium">Times of Day</label>
             {med.times.map((time, idx) => (
               <div key={idx} className="flex gap-2 mb-1">
                 <input
@@ -392,7 +396,7 @@ export default function EditPatientMedicationModal({
             <button
               type="button"
               onClick={addTime}
-              className="px-3 py-1 bg-green-500 text-white rounded mt-1"
+              className="px-3 py-1 bg-blue-500 text-white rounded mt-1"
             >
               Add Time
             </button>
@@ -402,13 +406,29 @@ export default function EditPatientMedicationModal({
             )}
           </div>
 
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="reminders"
+              checked={med.reminders}
+              onChange={(e) =>
+                setMed((prev) => ({ ...prev, reminders: e.target.checked }))
+              }
+              className="h-4 w-4"
+            />
+            <label htmlFor="reminders" className="font-medium">
+              Enable Reminders
+            </label>
+          </div>
+
           {/* Notes */}
           <div>
-            <label className="block font-medium">Notes</label>
+            <label className="block font-medium">Notes (optional)</label>
             <textarea
               name="notes"
               value={med.notes}
               onChange={handleChange}
+              placeholder="Any additional information..."
               className="border w-full p-2 rounded"
             />
           </div>
@@ -435,7 +455,7 @@ export default function EditPatientMedicationModal({
 
       {successMessage && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[9999]">
-          <div className="bg-white text-green-600 font-semibold text-center px-6 py-4 rounded-2xl shadow-lg">
+          <div className="bg-white text-blue-600 font-semibold text-center px-6 py-4 rounded-2xl shadow-lg">
             {successMessage}
           </div>
         </div>

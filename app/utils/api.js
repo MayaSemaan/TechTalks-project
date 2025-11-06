@@ -224,3 +224,40 @@ export async function updateMedication(medId, updatedData) {
     data: normalizedData,
   };
 }
+
+// Delete a report
+export async function deleteReport(reportId) {
+  if (!reportId) throw new Error("Report ID is required");
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/reports/${reportId}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      let errData = {};
+      try {
+        const contentType = res.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          errData = await res.json();
+        } else {
+          errData.error = await res.text();
+        }
+      } catch {
+        errData.error = `API error: ${res.status}`;
+      }
+      throw new Error(errData.error || `API error: ${res.status}`);
+    }
+
+    try {
+      return await res.json();
+    } catch {
+      return { success: true };
+    }
+  } catch (error) {
+    console.error("deleteReport error:", error);
+    return { success: false, error: error.message };
+  }
+}

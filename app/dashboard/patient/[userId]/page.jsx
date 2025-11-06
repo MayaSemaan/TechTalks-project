@@ -9,6 +9,7 @@ import {
   updateDoseStatus,
   deleteMedication,
   updateMedication,
+  deleteReport,
 } from "../../../utils/api.js";
 import EditPatientMedicationModal from "../../../components/EditPatientMedicationModal.jsx";
 
@@ -167,6 +168,9 @@ export default function PatientDashboardPage() {
   const [creatingMed, setCreatingMed] = useState(false);
   const [medToDelete, setMedToDelete] = useState(null); // med object pending deletion
   const [deleteSuccessMsg, setDeleteSuccessMsg] = useState(""); // success message
+  const [reportToDelete, setReportToDelete] = useState(null); // report object pending deletion
+  const [deleteReportSuccessMsg, setDeleteReportSuccessMsg] = useState(""); // success message
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -302,6 +306,39 @@ export default function PatientDashboardPage() {
     // Open modal instead of using confirm()
     setMedToDelete(med);
   };
+
+  const handleDeleteReport = (report) => {
+    setReportToDelete(report);
+  };
+
+  const confirmDeleteReport = async () => {
+    if (!reportToDelete) return;
+
+    try {
+      // Call API to delete the report (you need a deleteReport function in utils/api.js)
+      const result = await deleteReport(reportToDelete._id);
+
+      if (result.success) {
+        setData((prev) => ({
+          ...prev,
+          reports: prev.reports.filter((r) => r._id !== reportToDelete._id),
+        }));
+        setDeleteReportSuccessMsg("Report deleted successfully!");
+      } else {
+        setDeleteReportSuccessMsg(result.error || "Failed to delete report");
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteReportSuccessMsg("Error deleting report");
+    } finally {
+      setReportToDelete(null); // close modal
+    }
+
+    // Hide success message after 3 seconds
+    setTimeout(() => setDeleteReportSuccessMsg(""), 3000);
+  };
+
+  const cancelDeleteReport = () => setReportToDelete(null);
 
   // --- Save Edited Medication ---
   const handleSaveEdit = async (medData) => {
@@ -538,8 +575,20 @@ export default function PatientDashboardPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
       {/* Success Message Toast */}
       {deleteSuccessMsg && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
+        <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow-lg z-50">
           {deleteSuccessMsg}
+        </div>
+      )}
+
+      {deleteReportSuccessMsg && (
+        <div className="fixed top-16 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow-lg z-50">
+          {deleteReportSuccessMsg}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow-lg z-50">
+          {successMessage}
         </div>
       )}
 
@@ -646,6 +695,21 @@ export default function PatientDashboardPage() {
                       </p>
                       <p className="text-gray-600 text-sm">
                         {med.dosage} {med.unit} ({med.type})
+                      </p>
+
+                      <p className="text-gray-500 text-xs">
+                        Start: {formatDateNice(med.startDate)} | End:{" "}
+                        {formatDateNice(med.endDate)}
+                      </p>
+
+                      {/* NEW: Schedule / Frequency */}
+                      <p className="text-gray-500 text-xs">
+                        Schedule:{" "}
+                        {med.schedule === "custom" && med.customInterval
+                          ? `Every ${med.customInterval.number} ${
+                              med.customInterval.unit
+                            }${med.customInterval.number > 1 ? "s" : ""}`
+                          : med.schedule}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -811,7 +875,10 @@ export default function PatientDashboardPage() {
                   return { ...prev, meds: [...prev.meds, newMed] };
                 });
 
+                setSuccessMessage("Medication added successfully!");
+
                 setCreatingMed(false);
+                setTimeout(() => setSuccessMessage(""), 3000);
               } catch (err) {
                 console.error(err);
                 alert(err.message);
@@ -838,6 +905,32 @@ export default function PatientDashboardPage() {
                 </button>
                 <button
                   onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Delete Report Confirmation Modal */}
+        {reportToDelete && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white rounded-xl p-6 w-96 shadow-lg">
+              <h3 className="text-lg font-bold mb-4">Delete Report</h3>
+              <p className="mb-4">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold">{reportToDelete.title}</span>?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={cancelDeleteReport}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteReport}
                   className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
                 >
                   Delete
@@ -892,13 +985,14 @@ export default function PatientDashboardPage() {
                   </div>
                   <div className="flex gap-2">
                     <a
-                      href={`/reports/view/${r._id}`}
+                      href={`/reports/view/${r._id}?patientId=${data.user._id}`}
                       target="_blank"
                       rel="noreferrer"
                       className="underline text-blue-600"
                     >
                       View
                     </a>
+
                     <a
                       href={r.fileUrl}
                       download
@@ -906,6 +1000,13 @@ export default function PatientDashboardPage() {
                     >
                       Download
                     </a>
+
+                    <button
+                      onClick={() => handleDeleteReport(r)}
+                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition text-sm"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
