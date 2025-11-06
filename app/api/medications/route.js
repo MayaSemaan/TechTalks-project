@@ -131,11 +131,14 @@ export async function POST(req) {
 
     return NextResponse.json(
       {
-        ...med.toObject(),
-        startDate: med.startDate?.toISOString() || null,
-        endDate: med.endDate?.toISOString() || null,
-        reminders: !!med.reminders,
-        doses: doses.map((d) => ({ ...d, taken: "pending" })),
+        success: true,
+        medication: {
+          ...med.toObject(),
+          startDate: med.startDate?.toISOString() || null,
+          endDate: med.endDate?.toISOString() || null,
+          reminders: !!med.reminders,
+          doses: doses.map((d) => ({ ...d, taken: "pending" })),
+        },
       },
       { status: 201 }
     );

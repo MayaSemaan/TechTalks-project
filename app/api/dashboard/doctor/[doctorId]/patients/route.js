@@ -1,5 +1,6 @@
 import connectToDB from "../../../../../../lib/db.js";
 import User from "../../../../../../models/User.js";
+import Medication from "../../../../../../models/Medication.js";
 import Report from "../../../../../../models/Report.js";
 import { calculateCompliance } from "../../../../../../lib/complianceHelper.js";
 import mongoose from "mongoose";
@@ -33,6 +34,9 @@ export async function GET(req, { params }) {
           doctor: doctorId,
           patient: patientId,
         });
+        const medCount = await Medication.countDocuments({
+          userId: patientId, // use userId instead of patient
+        });
 
         return {
           patientId,
@@ -43,6 +47,7 @@ export async function GET(req, { params }) {
           dosesMissed: compliance.totalMissed || 0,
           dosesPending: compliance.totalPending || 0,
           totalReports: reportCount || 0,
+          totalMedications: medCount || 0,
         };
       })
     );

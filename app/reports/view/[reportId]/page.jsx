@@ -182,7 +182,7 @@ export default function SingleReportPage() {
             <a
               href={`/api/reports/view/${report._id}/download`}
               download
-              className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg transition"
+              className="bg-gray-400 hover:bg-gray-500 text-white px-5 py-2 rounded-lg transition"
             >
               Download PDF
             </a>

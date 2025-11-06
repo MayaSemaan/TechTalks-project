@@ -17,60 +17,82 @@ function isMedicationForDate(med, selectedDate) {
 
   const startDate = new Date(med.startDate);
   const endDate = med.endDate ? new Date(med.endDate) : null;
-  const schedule = med.schedule || "daily";
-  const customValue = med.customValue || 1;
-  const unit = med.unit || "days";
 
-  // normalize dates (ignore time)
+  // normalize (zero time)
   startDate.setHours(0, 0, 0, 0);
-  selectedDate.setHours(0, 0, 0, 0);
+  const sDate = new Date(selectedDate);
+  sDate.setHours(0, 0, 0, 0);
 
-  // outside range → not valid
-  if (endDate && selectedDate > endDate) return false;
-  if (selectedDate < startDate) return false;
+  // range check
+  if (endDate) {
+    const e = new Date(endDate);
+    e.setHours(0, 0, 0, 0);
+    if (sDate > e) return false;
+  }
+  if (sDate < startDate) return false;
 
-  const diffTime = selectedDate - startDate;
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const schedule = med.schedule || "daily";
+
+  const diffDays = Math.floor((sDate - startDate) / (1000 * 60 * 60 * 24));
+
+  // helpers to read custom interval (accept different shapes)
+  const customNumber = med?.customInterval?.number ?? med?.customValue ?? 1;
+  let customUnit =
+    med?.customInterval?.unit ?? med?.unit ?? med?.customUnit ?? "day"; // try several names
+
+  // normalize unit
+  customUnit = ("" + customUnit).toLowerCase();
+  if (customUnit.endsWith("s")) customUnit = customUnit.slice(0, -1); // "days" -> "day"
 
   switch (schedule) {
     case "daily":
       return true;
 
     case "weekly":
-      return startDate.getDay() === selectedDate.getDay();
+      // occurs on same weekday as startDate
+      return startDate.getDay() === sDate.getDay();
 
-    case "monthly":
-      return startDate.getDate() === selectedDate.getDate();
+    case "monthly": {
+      const diffMonths =
+        (sDate.getFullYear() - startDate.getFullYear()) * 12 +
+        (sDate.getMonth() - startDate.getMonth());
+
+      if (diffMonths < 0) return false; // before start date
+
+      const sameDay =
+        startDate.getDate() === sDate.getDate() ||
+        (startDate.getDate() > 28 && sDate.getDate() >= 28);
+
+      return diffMonths % 1 === 0 && sameDay; // every month
+    }
 
     case "custom": {
-      if (unit === "days") {
-        // every N days
-        return diffDays % customValue === 0;
+      if (!customNumber || !customUnit) return false;
+
+      if (customUnit === "day") {
+        return diffDays % Number(customNumber) === 0;
       }
 
-      if (unit === "weeks") {
-        // every N weeks on same weekday
+      if (customUnit === "week") {
         const diffWeeks = Math.floor(diffDays / 7);
+        // require same weekday as startDate and match every N weeks
         return (
-          diffWeeks % customValue === 0 &&
-          startDate.getDay() === selectedDate.getDay()
+          diffWeeks % Number(customNumber) === 0 &&
+          startDate.getDay() === sDate.getDay()
         );
       }
 
-      if (unit === "months") {
-        // every N months on same day or nearest valid day
+      if (customUnit === "month") {
         const diffMonths =
-          (selectedDate.getFullYear() - startDate.getFullYear()) * 12 +
-          (selectedDate.getMonth() - startDate.getMonth());
+          (sDate.getFullYear() - startDate.getFullYear()) * 12 +
+          (sDate.getMonth() - startDate.getMonth());
+        if (diffMonths < 0) return false;
 
         const sameDay =
-          selectedDate.getDate() === startDate.getDate() ||
-          // handle months with fewer days (e.g., Jan 31 → Feb 28)
-          (startDate.getDate() > 28 &&
-            selectedDate.getDate() >= 28 &&
-            selectedDate.getMonth() % customValue === 0);
+          sDate.getDate() === startDate.getDate() ||
+          (startDate.getDate() > 28 && sDate.getDate() >= 28);
 
-        return diffMonths % customValue === 0 && sameDay;
+        return diffMonths % Number(customNumber) === 0 && sameDay;
       }
 
       return false;
@@ -81,26 +103,20 @@ function isMedicationForDate(med, selectedDate) {
   }
 }
 
-// --- Helper: regenerate doses from times instantly ---
-function regenerateDosesFromTimes(times, med) {
-  if (!Array.isArray(times) || times.length === 0) return med.doses || [];
+// --- Helper: generate doses for a single target date (used when adding new med)
+function generateDosesForDate(times, med, targetDate) {
+  if (!Array.isArray(times) || times.length === 0) return [];
 
-  const startDate = new Date(med.startDate);
-  const endDate = new Date(med.endDate || startDate);
-  const doses = [];
+  const date = new Date(targetDate);
+  date.setHours(0, 0, 0, 0);
+  const dayStr = date.toISOString().split("T")[0];
 
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    for (const t of times) {
-      doses.push({
-        doseId: `${d.toISOString()}-${t}`,
-        date: new Date(d),
-        time: t,
-        taken: null,
-      });
-    }
-  }
-
-  return doses;
+  return times.map((time, idx) => ({
+    doseId: `${med._id || med.id || "new"}-${idx}-${dayStr}`,
+    date: date.toISOString(),
+    time,
+    taken: null,
+  }));
 }
 
 // ---------- Dynamic Imports for Charts ----------
@@ -148,6 +164,9 @@ export default function PatientDashboardPage() {
   const { userId } = useParams();
   const router = useRouter();
   const [token, setToken] = useState(null);
+  const [creatingMed, setCreatingMed] = useState(false);
+  const [medToDelete, setMedToDelete] = useState(null); // med object pending deletion
+  const [deleteSuccessMsg, setDeleteSuccessMsg] = useState(""); // success message
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -182,10 +201,33 @@ export default function PatientDashboardPage() {
       if (!res || res.error)
         throw new Error(res?.error || "Failed to fetch dashboard");
 
-      const medsWithConfirm = (res.medications || []).map((m) => ({
-        ...m,
-        showDeleteConfirm: false,
-      }));
+      const medsWithConfirm = (res.medications || []).map((m) => {
+        const med = { ...m, showDeleteConfirm: false };
+        const selectedDate = medFilterDay ? new Date(medFilterDay) : new Date();
+
+        // If API didn't return doses for today, generate them
+        const isForToday = isMedicationForDate(med, selectedDate);
+
+        if (isForToday && med.times?.length > 0) {
+          // Always regenerate doses for selected day if missing
+          const hasDoseForDay = (med.doses || []).some((d) => {
+            const dDay = new Date(d.date).toISOString().split("T")[0];
+            const sDay = selectedDate.toISOString().split("T")[0];
+            return dDay === sDay;
+          });
+
+          if (!hasDoseForDay) {
+            med.doses = generateDosesForDate(med.times, med, selectedDate);
+          }
+
+          med.notForSelectedDay = false;
+        } else {
+          med.doses = [];
+          med.notForSelectedDay = true;
+        }
+
+        return med;
+      });
 
       setData({
         user: res.user,
@@ -254,22 +296,14 @@ export default function PatientDashboardPage() {
 
   // --- Delete Medication ---
   const handleDeleteMedication = async (medId) => {
-    const confirmed = confirm(
-      "Are you sure you want to delete this medication?"
-    );
-    if (!confirmed) return;
+    const med = data.meds.find((m) => m._id === medId);
+    if (!med) return;
 
-    const result = await deleteMedication(medId);
-    if (result.success) {
-      setData((prev) => ({
-        ...prev,
-        meds: prev.meds.filter((m) => m._id !== medId),
-      }));
-    }
+    // Open modal instead of using confirm()
+    setMedToDelete(med);
   };
 
   // --- Save Edited Medication ---
-  // Inside PatientDashboardPage component
   const handleSaveEdit = async (medData) => {
     if (!medData?._id) {
       alert("Medication ID is required");
@@ -383,6 +417,37 @@ export default function PatientDashboardPage() {
     }
   };
 
+  // --- Confirm / Cancel Delete ---
+  const confirmDelete = async () => {
+    if (!medToDelete) return;
+
+    try {
+      const result = await deleteMedication(medToDelete._id);
+
+      if (result.success) {
+        setData((prev) => ({
+          ...prev,
+          meds: prev.meds.filter((m) => m._id !== medToDelete._id),
+        }));
+        setDeleteSuccessMsg("Medication deleted successfully!");
+      } else {
+        setDeleteSuccessMsg(result.error || "Failed to delete medication");
+      }
+    } catch (err) {
+      console.error(err);
+      setDeleteSuccessMsg("Error deleting medication");
+    } finally {
+      setMedToDelete(null); // close modal
+    }
+
+    // Hide success message after 3 seconds
+    setTimeout(() => setDeleteSuccessMsg(""), 3000);
+  };
+
+  const cancelDelete = () => {
+    setMedToDelete(null);
+  };
+
   // --- Filtered Medications ---
   const filteredMeds = useMemo(() => {
     const selectedDayStr = (medFilterDay ? new Date(medFilterDay) : new Date())
@@ -437,7 +502,7 @@ export default function PatientDashboardPage() {
         };
       })
       .filter((med) =>
-        med.name.toLowerCase().includes(medSearch.toLowerCase())
+        (med.name || "").toLowerCase().includes(medSearch.toLowerCase())
       );
   }, [data.meds, medSearch, medStatusFilter, medFilterDay]);
 
@@ -463,7 +528,7 @@ export default function PatientDashboardPage() {
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
-    colors: ["#3b82f6", "#f97316", "#9ca3af"],
+    colors: ["#3b82f6", "#ef4444", "#9ca3af"],
   };
 
   if (loading) return <div className="p-6">Loading...</div>;
@@ -471,6 +536,13 @@ export default function PatientDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 p-8">
+      {/* Success Message Toast */}
+      {deleteSuccessMsg && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
+          {deleteSuccessMsg}
+        </div>
+      )}
+
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <header className="flex justify-between items-center">
@@ -494,7 +566,7 @@ export default function PatientDashboardPage() {
                   <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="taken" stroke="#3b82f6" />
-                  <Line type="monotone" dataKey="missed" stroke="#f97316" />
+                  <Line type="monotone" dataKey="missed" stroke="#ef4444" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -545,6 +617,15 @@ export default function PatientDashboardPage() {
               <option value="missed">Missed</option>
               <option value="pending">Pending</option>
             </select>
+
+            {/* Add Medication Button */}
+
+            <button
+              onClick={() => setCreatingMed(true)}
+              className="bg-blue-500 text-white px-3 py-0.5 rounded hover:bg-blue-600 text-sm"
+            >
+              + Add Medication
+            </button>
           </div>
 
           {/* Medication Cards */}
@@ -570,10 +651,11 @@ export default function PatientDashboardPage() {
                     <div className="flex gap-1">
                       <button
                         onClick={() => setEditingMed(med)}
-                        className="bg-yellow-400 text-white px-2 py-1 rounded hover:bg-yellow-500 text-xs"
+                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs"
                       >
                         Edit
                       </button>
+
                       <button
                         onClick={() => handleDeleteMedication(med._id)}
                         className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs"
@@ -677,6 +759,92 @@ export default function PatientDashboardPage() {
             onClose={() => setEditingMed(null)}
             onSave={handleSaveEdit}
           />
+        )}
+
+        {/* Create Medication Modal */}
+        {creatingMed && (
+          <EditPatientMedicationModal
+            token={token}
+            initialData={null} // null means creating new med
+            onClose={() => setCreatingMed(false)}
+            onSave={async (newMedData) => {
+              try {
+                const res = await fetch(`/api/medications`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: token ? `Bearer ${token}` : undefined,
+                  },
+                  body: JSON.stringify(newMedData),
+                });
+
+                const data = await res.json();
+                if (!res.ok)
+                  throw new Error(data.error || "Failed to create medication");
+
+                // Add the new med to state, and generate doses for selected day if appropriate
+                setData((prev) => {
+                  const newMed = {
+                    ...data.medication,
+                    showDeleteConfirm: false,
+                  };
+
+                  // choose selected date (filter or today)
+                  const selectedDate = medFilterDay
+                    ? new Date(medFilterDay)
+                    : new Date();
+
+                  const isForToday = isMedicationForDate(newMed, selectedDate);
+
+                  if (isForToday && newMed.times?.length > 0) {
+                    newMed.filteredDoses = generateDosesForDate(
+                      newMed.times,
+                      newMed,
+                      selectedDate
+                    );
+                    newMed.notForSelectedDay = false;
+                  } else {
+                    newMed.filteredDoses = [];
+                    newMed.notForSelectedDay = true;
+                  }
+
+                  return { ...prev, meds: [...prev.meds, newMed] };
+                });
+
+                setCreatingMed(false);
+              } catch (err) {
+                console.error(err);
+                alert(err.message);
+              }
+            }}
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {medToDelete && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white rounded-xl p-6 w-96 shadow-lg">
+              <h3 className="text-lg font-bold mb-4">Delete Medication</h3>
+              <p className="mb-4">
+                Are you sure you want to delete{" "}
+                <span className="font-semibold">{medToDelete.name}</span>?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={cancelDelete}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Reports */}

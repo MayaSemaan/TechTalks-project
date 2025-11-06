@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ChartComponent from "../../../../../components/ChartComponent.jsx";
-import EditMedicationModal from "../../../../../components/EditMedicationModal";
+import EditPatientMedicationModal from "../../../../../components/EditPatientMedicationModal";
 import {
   fetchDashboardData,
   updateMedication,
@@ -480,7 +480,7 @@ export default function DoctorPatientDashboardPage() {
   const pieData = {
     labels: ["Taken", "Missed", "Pending"],
     values: [totalTaken, totalMissed, totalPending],
-    colors: ["#3b82f6", "#f97316", "#9ca3af"],
+    colors: ["#3b82f6", "#ef4444", "#9ca3af"],
   };
 
   if (loading) return <div className="p-6">Loading...</div>;
@@ -517,7 +517,7 @@ export default function DoctorPatientDashboardPage() {
                   <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="taken" stroke="#3b82f6" />
-                  <Line type="monotone" dataKey="missed" stroke="#f97316" />
+                  <Line type="monotone" dataKey="missed" stroke="#ef4444" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -718,7 +718,7 @@ export default function DoctorPatientDashboardPage() {
                           }?doctorId=${doctorId}&patientId=${patientId}&t=${new Date().getTime()}`
                         )
                       }
-                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition"
+                      className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 transition"
                     >
                       Edit
                     </button>
@@ -749,7 +749,7 @@ export default function DoctorPatientDashboardPage() {
 
       {/* Medication Modal */}
       {modalOpen && (
-        <EditMedicationModal
+        <EditPatientMedicationModal
           patientId={patientId}
           medId={editingMed?._id || null}
           token={

@@ -12,7 +12,7 @@ const parseDateSafe = (val) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-// --- PATCH: update today's dose ---
+// --- PATCH: update a dose ---
 export async function PATCH(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -23,7 +23,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 
     const { doseId, status } = await req.json();
-    if (!doseId || !status)
+    if (!doseId || status === undefined)
       return NextResponse.json(
         { error: "doseId and status are required" },
         { status: 400 }
@@ -50,17 +50,23 @@ export async function PATCH(req, { params }) {
     if (!isOwner && !isFamily)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
-    const todayStr = new Date().toDateString();
-    const dose = med.doses.find(
-      (d) => d.doseId === doseId && new Date(d.date).toDateString() === todayStr
-    );
-    if (!dose)
-      return NextResponse.json(
-        { error: "Dose not found for today" },
-        { status: 404 }
-      );
+    // --- Find dose by doseId (for today or existing) ---
+    let dose = med.doses.find((d) => d.doseId === doseId);
 
+    if (!dose) {
+      // Dose does not exist yet, create it
+      dose = {
+        doseId,
+        date: new Date(),
+        time: null,
+        taken: null,
+      };
+      med.doses.push(dose);
+    }
+
+    // --- Update taken/missed status ---
     dose.taken = status === "taken" ? true : status === "missed" ? false : null;
+
     await med.save();
 
     return NextResponse.json({
@@ -68,7 +74,12 @@ export async function PATCH(req, { params }) {
       updatedDose: {
         doseId: dose.doseId,
         time: dose.time,
-        taken: status,
+        taken:
+          dose.taken === true
+            ? "taken"
+            : dose.taken === false
+            ? "missed"
+            : "pending",
         date: dose.date,
       },
     });
@@ -131,7 +142,7 @@ export async function PUT(req, { params }) {
       );
     }
 
-    // --- Update times and regenerate doses ---
+    // --- Update times and regenerate doses without overwriting existing taken/missed ---
     if (Array.isArray(data.times)) {
       const uniqueTimes = [...new Set(data.times)];
       med.times = uniqueTimes;
@@ -166,7 +177,7 @@ export async function PUT(req, { params }) {
           newDoses.push({
             doseId: found?.doseId || randomUUID(),
             time: t,
-            taken: found?.taken ?? null,
+            taken: found?.taken ?? null, // keep existing status
             date: day,
           });
         });

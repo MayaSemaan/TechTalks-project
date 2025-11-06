@@ -22,6 +22,8 @@ export default function EditPatientMedicationModal({
   onSave,
   initialData,
 }) {
+  const isEditMode = !!medId || !!initialData;
+
   const [med, setMed] = useState({
     name: "",
     dosage: 1,
@@ -31,15 +33,15 @@ export default function EditPatientMedicationModal({
     customInterval: { number: 1, unit: "day" },
     startDate: "",
     endDate: "",
-    times: [],
+    times: [""], // Default one time for new med
     notes: "",
     frequency: "every day",
   });
   const [loading, setLoading] = useState(!!medId);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [timesError, setTimesError] = useState(""); // NEW STATE FOR TIMES VALIDATION
 
-  // ✅ Dropdown options
   const unitOptions = ["mg", "ml", "pills", "drops"];
   const typeOptions = ["tablet", "capsule", "syrup", "injection"];
 
@@ -77,7 +79,7 @@ export default function EditPatientMedicationModal({
           endDate: formatDateString(data.medication.endDate),
           times: Array.isArray(data.medication.times)
             ? data.medication.times
-            : [],
+            : [""],
           notes: data.medication.notes || "",
         };
         fetched.frequency = formatFrequency({
@@ -104,6 +106,7 @@ export default function EditPatientMedicationModal({
       startDate: formatDateString(initialData.startDate),
       endDate: formatDateString(initialData.endDate),
       customInterval: initialData.customInterval || { number: 1, unit: "day" },
+      times: initialData.times?.length ? initialData.times : [""],
     };
     initMed.frequency = formatFrequency({
       schedule: initMed.schedule,
@@ -115,8 +118,6 @@ export default function EditPatientMedicationModal({
   // ---------------- handleChange ----------------
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    // Prevent dosage < 1
     if (name === "dosage" && value < 1) return;
 
     if (name === "schedule") {
@@ -169,7 +170,15 @@ export default function EditPatientMedicationModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // ✅ Validation: end date must be strictly after start date
+    // TIMES VALIDATION
+    const hasValidTime = med.times.some((t) => t && t.trim() !== "");
+    if (!hasValidTime) {
+      setTimesError("Please add at least one time.");
+      return;
+    } else {
+      setTimesError("");
+    }
+
     if (med.startDate && med.endDate) {
       const start = new Date(med.startDate);
       const end = new Date(med.endDate);
@@ -180,17 +189,22 @@ export default function EditPatientMedicationModal({
     }
 
     const payload = {
-      _id: medId,
       ...med,
       startDate: med.startDate ? new Date(med.startDate).toISOString() : null,
       endDate: med.endDate ? new Date(med.endDate).toISOString() : null,
       customInterval: med.schedule === "custom" ? med.customInterval : null,
     };
 
+    if (isEditMode) payload._id = medId || initialData?._id;
+
     try {
       if (onSave) {
         await onSave(payload);
-        setSuccessMessage("Medication updated successfully!");
+        setSuccessMessage(
+          isEditMode
+            ? "Medication updated successfully!"
+            : "Medication added successfully!"
+        );
         setTimeout(() => {
           setSuccessMessage("");
           onClose();
@@ -214,7 +228,7 @@ export default function EditPatientMedicationModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded shadow w-[450px] max-h-[90vh] overflow-auto">
         <h2 className="text-xl font-bold mb-4">
-          {medId ? "Edit Medication" : "Add Medication"}
+          {isEditMode ? "Edit Medication" : "Add Medication"}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -238,7 +252,7 @@ export default function EditPatientMedicationModal({
               name="dosage"
               min="1"
               value={med.dosage}
-              onChange={handleChange}
+              onInput={handleChange}
               className="border w-full p-2 rounded"
               required
             />
@@ -382,6 +396,10 @@ export default function EditPatientMedicationModal({
             >
               Add Time
             </button>
+            {/* Show error if no times */}
+            {timesError && (
+              <p className="text-gray-600 text-sm mt-1 italic">{timesError}</p>
+            )}
           </div>
 
           {/* Notes */}
@@ -404,9 +422,10 @@ export default function EditPatientMedicationModal({
             >
               Cancel
             </button>
+            {/* Save button always clickable */}
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-500 text-white rounded"
+              className="px-4 py-2 rounded text-white bg-blue-500 hover:bg-blue-600"
             >
               Save
             </button>

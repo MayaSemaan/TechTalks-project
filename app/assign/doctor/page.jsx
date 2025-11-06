@@ -94,7 +94,7 @@ export default function AssignDoctorPage() {
               const id = localStorage.getItem("userId");
               window.location.href = `/dashboard/doctor/${id}`;
             }}
-            className="w-full font-bold py-3 rounded-xl text-white bg-green-500 hover:bg-green-600 transition"
+            className="w-full font-bold py-3 rounded-xl text-gray-800 bg-gray-300 hover:bg-gray-400 transition"
           >
             Go to Dashboard
           </button>

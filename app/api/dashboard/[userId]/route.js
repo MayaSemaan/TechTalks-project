@@ -6,13 +6,76 @@ import User from "../../../../models/User.js";
 import { calculateCompliance } from "../../../../lib/complianceHelper.js";
 import { authenticate } from "../../../../middlewares/auth.js";
 
+function isMedicationForToday(med) {
+  const today = new Date();
+  const start = new Date(med.startDate);
+  const end = med.endDate ? new Date(med.endDate) : null;
+
+  // Normalize to date-only (ignore timezone)
+  const todayDate = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+  const startDate = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate()
+  );
+
+  if (isNaN(start)) return false;
+  if (end && todayDate > end) return false;
+  if (todayDate < startDate) return false;
+
+  const diffDays = Math.floor((todayDate - startDate) / (1000 * 60 * 60 * 24));
+
+  switch (med.schedule) {
+    case "daily":
+      return true;
+
+    case "weekly":
+      return todayDate.getDay() === startDate.getDay();
+
+    case "monthly": {
+      const monthsDiff =
+        (todayDate.getFullYear() - startDate.getFullYear()) * 12 +
+        (todayDate.getMonth() - startDate.getMonth());
+      return (
+        monthsDiff >= 0 &&
+        monthsDiff % 1 === 0 && // every 1 month
+        todayDate.getDate() === startDate.getDate()
+      );
+    }
+
+    case "custom":
+      const interval = med.customInterval?.number || 1;
+      const unit = med.customInterval?.unit || "day";
+      if (unit === "day") return diffDays % interval === 0;
+      if (unit === "week") return diffDays % (7 * interval) === 0;
+      if (unit === "month") {
+        const monthsDiff =
+          (todayDate.getFullYear() - startDate.getFullYear()) * 12 +
+          (todayDate.getMonth() - startDate.getMonth());
+        return (
+          monthsDiff >= 0 &&
+          monthsDiff % interval === 0 &&
+          todayDate.getDate() === startDate.getDate()
+        );
+      }
+
+      return false;
+
+    default:
+      return false;
+  }
+}
+
 export async function GET(req, { params }) {
   try {
     await connectToDB();
     const { userId } = params;
     const { searchParams } = new URL(req.url);
 
-    // Fetch logged-in user
     let loggedInUser = null;
     try {
       loggedInUser = await authenticate(req);
@@ -20,7 +83,6 @@ export async function GET(req, { params }) {
       loggedInUser = { role: "guest" };
     }
 
-    // Fetch patient/user data
     const user = await User.findById(userId).select("name email role");
     if (!user)
       return NextResponse.json(
@@ -28,16 +90,14 @@ export async function GET(req, { params }) {
         { status: 404 }
       );
 
-    // Medication filters
     const statusFilter = searchParams.get("status");
     const medFromDate = searchParams.get("fromDate");
     const medToDate = searchParams.get("toDate");
 
-    // Fetch **all meds** for this user
     const medications = await Medication.find({ userId });
 
-    // Process meds & doses
     const medicationsData = medications.map((med) => {
+      // filter doses by query params
       const filteredDoses = med.doses.filter((dose) => {
         const doseDate = new Date(dose.date);
 
@@ -50,6 +110,23 @@ export async function GET(req, { params }) {
 
         return true;
       });
+
+      // ✅ If no dose exists for today but med should appear today → add a pending dose
+      const todayStr = new Date().toDateString();
+      const hasTodayDose = med.doses.some(
+        (d) => new Date(d.date).toDateString() === todayStr
+      );
+
+      if (!hasTodayDose && isMedicationForToday(med)) {
+        med.times.forEach((time) => {
+          filteredDoses.push({
+            doseId: `temp-${Math.random().toString(36).substring(2, 9)}`,
+            date: new Date(),
+            time,
+            taken: null,
+          });
+        });
+      }
 
       const dosesTaken = med.doses.filter((d) => d.taken === true).length;
       const dosesMissed = med.doses.filter((d) => d.taken === false).length;
@@ -64,20 +141,19 @@ export async function GET(req, { params }) {
         unit: med.unit,
         type: med.type,
         schedule: med.schedule,
+        customInterval: med.customInterval || null,
+        startDate: med.startDate ? med.startDate.toISOString() : null,
+        endDate: med.endDate ? med.endDate.toISOString() : null,
+        times: Array.isArray(med.times) ? med.times : [],
         reminders: med.reminders,
         notes: med.notes,
         dosesTaken,
         dosesMissed,
         dosesPending,
         compliance: parseFloat(compliance.toFixed(2)),
-        filteredDoses: filteredDoses.length
-          ? filteredDoses.map((d) => ({
-              doseId: d.doseId,
-              date: d.date,
-              time: d.time,
-              taken: d.taken,
-            }))
-          : [], // always send array (empty if no doses)
+        filteredDoses,
+        // ✅ Add this line:
+        isForToday: isMedicationForToday(med),
       };
     });
 
@@ -100,7 +176,7 @@ export async function GET(req, { params }) {
       uploadedAt: r.createdAt ? r.createdAt.toISOString() : null,
     }));
 
-    // Chart data
+    // Chart data (unchanged)
     const chartData = [];
     const end = new Date();
     const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);

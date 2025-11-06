@@ -101,7 +101,7 @@ export default function FamilyAssignPage() {
               const userId = localStorage.getItem("userId");
               window.location.href = `/dashboard/family/${userId}`;
             }}
-            className="w-full mt-4 font-bold py-3 rounded-xl text-white bg-green-500 hover:bg-green-600 transition"
+            className="w-full mt-4 font-bold py-3 rounded-xl text-gray-800 bg-gray-300 hover:bg-gray-400 transition"
           >
             Go to Dashboard
           </button>

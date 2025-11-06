@@ -327,7 +327,7 @@ export default function FamilyPatientDashboard() {
             totalDosesForPie.filter((d) => d.displayStatus === "Pending")
               .length,
           ],
-          colors: ["#3b82f6", "#f97316", "#9ca3af"],
+          colors: ["#3b82f6", "#ef4444", "#9ca3af"],
         }
       : null;
 
@@ -359,7 +359,7 @@ export default function FamilyPatientDashboard() {
                   <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="taken" stroke="#3b82f6" />
-                  <Line type="monotone" dataKey="missed" stroke="#f97316" />
+                  <Line type="monotone" dataKey="missed" stroke="#ef4444" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -476,7 +476,7 @@ export default function FamilyPatientDashboard() {
                                     onClick={() =>
                                       handleChangeDoseStatus(med._id, d, true)
                                     }
-                                    className={`px-2 py-0.5 rounded text-xs ${
+                                    className={`px-1 py-0.1 rounded text-xs ${
                                       d.taken === true
                                         ? "bg-blue-600 text-white"
                                         : "bg-blue-500 text-white"
@@ -488,7 +488,7 @@ export default function FamilyPatientDashboard() {
                                     onClick={() =>
                                       handleChangeDoseStatus(med._id, d, false)
                                     }
-                                    className={`px-2 py-0.5 rounded text-xs ${
+                                    className={`px-1 py-0.1 rounded text-xs ${
                                       d.taken === false
                                         ? "bg-red-600 text-white"
                                         : "bg-red-500 text-white"

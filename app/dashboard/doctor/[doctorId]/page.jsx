@@ -35,10 +35,7 @@ export default function DoctorDashboardPage() {
           patientId: p.patientId,
           patientName: p.patientName,
           patientEmail: p.patientEmail,
-          complianceTotal: p.complianceTotal,
-          dosesTaken: p.dosesTaken,
-          dosesMissed: p.dosesMissed,
-          dosesPending: p.dosesPending,
+          totalMedications: p.totalMedications,
           totalReports: p.totalReports,
         })),
       });
@@ -52,9 +49,6 @@ export default function DoctorDashboardPage() {
   useEffect(() => {
     loadDoctorData();
   }, [doctorId]);
-
-  const goToPatientDashboard = (patientId) =>
-    router.push(`/dashboard/patient/${patientId}`);
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-600">Error: {error}</div>;
@@ -91,11 +85,8 @@ export default function DoctorDashboardPage() {
                   </div>
 
                   <div className="text-sm space-y-1">
-                    <p>Compliance: {p.complianceTotal}%</p>
-                    <p>Taken: {p.dosesTaken}</p>
-                    <p>Missed: {p.dosesMissed}</p>
-                    <p>Pending: {p.dosesPending}</p>
-                    <p>Total Reports: {p.totalReports}</p>
+                    <p>Total Medications: {p.totalMedications || 0}</p>
+                    <p>Total Reports: {p.totalReports || 0}</p>
                   </div>
 
                   <button

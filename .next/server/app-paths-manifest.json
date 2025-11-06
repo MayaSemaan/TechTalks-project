@@ -1,7 +1,7 @@
 {
-  "/api/dashboard/[userId]/route": "app/api/dashboard/[userId]/route.js",
-  "/api/medications/[id]/route": "app/api/medications/[id]/route.js",
-  "/dashboard/patient/[userId]/page": "app/dashboard/patient/[userId]/page.js",
-  "/login/page": "app/login/page.js",
-  "/dashboard/family/[familyId]/patient/[patientId]/page": "app/dashboard/family/[familyId]/patient/[patientId]/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/dashboard/family/[familyId]/patient/[patientId]/page": "app/dashboard/family/[familyId]/patient/[patientId]/page.js",
+  "/reports/view/[reportId]/page": "app/reports/view/[reportId]/page.js",
+  "/dashboard/doctor/[doctorId]/patient/[patientId]/page": "app/dashboard/doctor/[doctorId]/patient/[patientId]/page.js",
+  "/patients/[patientId]/medications/page": "app/patients/[patientId]/medications/page.js"
 }
