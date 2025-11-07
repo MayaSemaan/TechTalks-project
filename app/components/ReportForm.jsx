@@ -95,7 +95,7 @@ export default function ReportForm({ initialData, onSave, onCancel, saving }) {
 
         {/* Show new file name after selecting */}
         {pdfFile && (
-          <p className="text-sm text-green-600 mt-1">
+          <p className="text-sm text-blue-600 mt-1">
             New file selected: {pdfFile.name}
           </p>
         )}

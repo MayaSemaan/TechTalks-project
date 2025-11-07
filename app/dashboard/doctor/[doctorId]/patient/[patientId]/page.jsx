@@ -27,6 +27,16 @@ function mergeAndFilterDoses(generated, backend) {
 }
 
 // ---------- Helpers ----------
+
+// Helper to get today's date in YYYY-MM-DD format
+const getTodayStr = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const parseSafeDate = (d) => {
   if (!d) return null;
   const dateObj = new Date(d);
@@ -44,6 +54,11 @@ export const formatDateNice = (date) => {
   });
 };
 
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return null;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Date(year, month - 1, day); // month is 0-indexed
+};
 // ---------- Normalize Medication ----------
 const normalizeMedication = (raw) => {
   const med = raw || {};
@@ -85,10 +100,9 @@ const normalizeMedication = (raw) => {
     .map((d) => d.date?.split("T")[0])
     .filter(Boolean);
 
-  const startDate =
-    backendStart || (doseDates.length ? doseDates.sort()[0] : null);
-  const endDate =
-    backendEnd || (doseDates.length ? doseDates.sort().slice(-1)[0] : null);
+  const startDate = backendStart || null; // don't default to first dose
+
+  const endDate = backendEnd || null;
 
   return {
     _id: med._id,
@@ -114,9 +128,9 @@ const normalizeMedication = (raw) => {
 
 // Generate doses for a given med and a specific day (YYYY-MM-DD string)
 const isSameDay = (date1, date2) => {
-  if (!date1 || !date2) return false;
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
+  const d1 = parseLocalDate(date1);
+  const d2 = parseLocalDate(date2);
+  if (!d1 || !d2) return false;
   return (
     d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&
@@ -124,67 +138,64 @@ const isSameDay = (date1, date2) => {
   );
 };
 
-// ✅ Generate doses for a day respecting schedule and times
-const generateDosesForDay = (med, day) => {
-  const existing = (med.doses || []).filter((d) => isSameDay(d.date, day));
-  if (existing.length > 0) return existing;
+export const generateDosesForDay = (med, day) => {
+  if (!med || !day || !med.times?.length) return [];
 
-  if (!med.startDate) return [];
-  const start = new Date(med.startDate);
-  const d = new Date(day);
-  if (d < start) return [];
+  const d = parseLocalDate(day);
+  const start = med.startDate ? parseLocalDate(med.startDate) : null;
+  const end = med.endDate ? parseLocalDate(med.endDate) : null;
+
+  // Out of range
+  if (!start || d < start || (end && d > end)) return [];
+
+  let isScheduledDay = false;
 
   switch (med.schedule) {
     case "daily":
-      return (med.times || []).map((time, idx) => ({
-        doseId: `${day}-${idx}`,
-        date: day,
-        time,
-        taken: null,
-      }));
+      isScheduledDay = true;
+      break;
     case "weekly":
-      if (d.getDay() !== start.getDay()) return [];
-      return (med.times || []).map((time, idx) => ({
-        doseId: `${day}-${idx}`,
-        date: day,
-        time,
-        taken: null,
-      }));
+      if (start) isScheduledDay = d.getDay() === start.getDay();
+      break;
     case "monthly":
-      if (d.getDate() !== start.getDate()) return [];
-      return (med.times || []).map((time, idx) => ({
-        doseId: `${day}-${idx}`,
-        date: day,
-        time,
-        taken: null,
-      }));
+      if (start) isScheduledDay = d.getDate() === start.getDate();
+      break;
     case "custom":
-      if (!med.customInterval?.number || !med.customInterval?.unit) return [];
-      const num = med.customInterval.number;
-      const unit = med.customInterval.unit.toLowerCase();
+      const num = med.customInterval?.number;
+      let unit = med.customInterval?.unit?.toLowerCase();
+      if (!num || !unit) break;
+      unit = unit.replace(/s$/, "");
 
-      let isValid = false;
-      if (unit.startsWith("day")) {
+      if (unit === "day") {
         const diffDays = Math.floor((d - start) / (1000 * 60 * 60 * 24));
-        isValid = diffDays >= 0 && diffDays % num === 0;
-      } else if (unit.startsWith("week")) {
-        const diffWeeks = Math.floor((d - start) / (1000 * 60 * 60 * 24 * 7));
-        isValid = diffWeeks >= 0 && diffWeeks % num === 0;
-      } else if (unit.startsWith("month")) {
-        const diffMonths =
+        isScheduledDay = diffDays >= 0 && diffDays % num === 0;
+      } else if (unit === "week") {
+        const diffDays = Math.floor((d - start) / (1000 * 60 * 60 * 24));
+        isScheduledDay = diffDays >= 0 && diffDays % (num * 7) === 0;
+      } else if (unit === "month") {
+        const monthsDiff =
           (d.getFullYear() - start.getFullYear()) * 12 +
           (d.getMonth() - start.getMonth());
-        isValid = diffMonths >= 0 && diffMonths % num === 0;
+        isScheduledDay =
+          monthsDiff >= 0 &&
+          monthsDiff % num === 0 &&
+          d.getDate() === start.getDate();
       }
+      break;
 
-      if (!isValid) return [];
-      return (med.times || []).map((time, idx) => ({
-        doseId: `${day}-${idx}`,
-        date: day,
-        time,
-        taken: null,
-      }));
+    default:
+      isScheduledDay = false;
   }
+
+  if (!isScheduledDay) return [];
+
+  return med.times.map((time, idx) => ({
+    doseId: `${med._id}-${day}-${idx}`,
+    date: day,
+    time,
+    taken: null,
+    displayStatus: "Pending",
+  }));
 };
 
 // ---------- Dynamic Imports for Charts ----------
@@ -234,7 +245,8 @@ export default function DoctorPatientDashboardPage() {
   const [reportToDelete, setReportToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [medSearch, setMedSearch] = useState("");
-  const [medFilterDay, setMedFilterDay] = useState("");
+  const [medFilterDay, setMedFilterDay] = useState(getTodayStr());
+
   const [medStatusFilter, setMedStatusFilter] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [reportDateFrom, setReportDateFrom] = useState("");
@@ -324,131 +336,52 @@ export default function DoctorPatientDashboardPage() {
   };
 
   const filteredMeds = useMemo(() => {
-    const selectedDay = new Date(
-      medFilterDay || new Date().toISOString().split("T")[0]
-    );
-
-    const isSameDay = (d1, d2) =>
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate();
+    const selectedDayStr = medFilterDay; // defaults to today
+    const selectedDay = new Date(`${selectedDayStr}T00:00:00`);
 
     return (data.medications || [])
       .map((med) => {
-        const start = new Date(med.startDate);
-        const end = med.endDate ? new Date(med.endDate) : null;
-        const inRange = selectedDay >= start && (!end || selectedDay <= end);
+        // Generate doses for the selected day
+        const generatedDoses = generateDosesForDay(med, selectedDayStr);
 
-        // Determine if selected day matches schedule
-        let isScheduledDay = false;
-
-        if (inRange) {
-          switch (med.schedule) {
-            case "daily":
-              isScheduledDay = true;
-              break;
-            case "weekly":
-              isScheduledDay = selectedDay.getDay() === start.getDay();
-              break;
-            case "monthly":
-              isScheduledDay = selectedDay.getDate() === start.getDate();
-              break;
-            case "custom":
-              const num = med.customInterval?.number;
-              let unit = med.customInterval?.unit;
-              if (num && unit) {
-                // Normalize unit
-                unit = unit.toLowerCase();
-                if (unit.endsWith("s")) unit = unit.slice(0, -1);
-
-                const startMid = new Date(
-                  start.getFullYear(),
-                  start.getMonth(),
-                  start.getDate()
-                );
-                const selectedMid = new Date(
-                  selectedDay.getFullYear(),
-                  selectedDay.getMonth(),
-                  selectedDay.getDate()
-                );
-                const diffDays = Math.round(
-                  (selectedMid - startMid) / (1000 * 60 * 60 * 24)
-                );
-
-                if (unit === "day") {
-                  isScheduledDay = diffDays >= 0 && diffDays % num === 0;
-                } else if (unit === "week") {
-                  const diffWeeks = Math.floor(diffDays / 7);
-                  isScheduledDay = diffWeeks >= 0 && diffWeeks % num === 0;
-                } else if (unit === "month") {
-                  const monthsDiff =
-                    (selectedDay.getFullYear() - start.getFullYear()) * 12 +
-                    (selectedDay.getMonth() - start.getMonth());
-                  isScheduledDay = monthsDiff >= 0 && monthsDiff % num === 0;
-                }
-              }
-              break;
-          }
-        }
-
-        // Existing doses for the day
-        const existingDoses = (med.filteredDoses || []).filter((d) =>
-          isSameDay(new Date(d.date), selectedDay)
+        // Filter backend doses for the selected day only
+        const backendDosesForDay = (med.filteredDoses || []).filter((d) =>
+          isSameDay(d.date, selectedDayStr)
         );
 
-        let allDosesForDay = [];
+        // Merge generated + backend doses
+        const allDoses = mergeAndFilterDoses(
+          generatedDoses,
+          backendDosesForDay
+        );
 
-        if (isScheduledDay) {
-          const generatedDoses = (med.times || [])
-            .map((time, idx) => {
-              if (!existingDoses.some((d) => d.time === time)) {
-                return {
-                  doseId: `${med._id}-${selectedDay.toISOString()}-${idx}`,
-                  date: selectedDay.toISOString(),
-                  time,
-                  taken: null,
-                };
-              }
-              return null;
-            })
-            .filter(Boolean);
-
-          allDosesForDay = [...existingDoses, ...generatedDoses].map((d) => ({
-            ...d,
-            displayStatus:
-              d.taken === true
-                ? "Taken"
-                : d.taken === false
-                ? "Missed"
-                : "Pending",
-          }));
-        } else {
-          allDosesForDay = [
-            {
-              doseId: `${med._id}-noschedule`,
-              date: selectedDay.toISOString(),
-              time: "-",
-              displayStatus: "Not for selected day",
-            },
-          ];
-        }
-
-        // Apply status filtering
+        // Apply status filter
         const visibleDoses = medStatusFilter
-          ? allDosesForDay.filter((d) =>
+          ? allDoses.filter((d) =>
               medStatusFilter === "taken"
-                ? d.displayStatus === "Taken"
+                ? d.taken === true
                 : medStatusFilter === "missed"
-                ? d.displayStatus === "Missed"
+                ? d.taken === false
                 : medStatusFilter === "pending"
-                ? d.displayStatus === "Pending"
+                ? d.taken == null
                 : true
             )
-          : allDosesForDay;
+          : allDoses;
+
+        // Add displayStatus to doses
+        const dosesWithStatus = visibleDoses.map((d) => ({
+          ...d,
+          displayStatus:
+            d.taken === true
+              ? "Taken"
+              : d.taken === false
+              ? "Missed"
+              : "Pending",
+        }));
 
         return {
           ...med,
-          filteredDoses: visibleDoses.sort((a, b) =>
+          filteredDoses: dosesWithStatus.sort((a, b) =>
             (a.time || "00:00").localeCompare(b.time || "00:00")
           ),
         };
@@ -491,9 +424,17 @@ export default function DoctorPatientDashboardPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <header className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-900">
-            {data.user?.name || "Patient"}'s Dashboard
-          </h1>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.push(`/dashboard/doctor/${doctorId}`)}
+              className="bg-gray-300 text-gray-800 px-3 py-1 rounded hover:bg-gray-400 transition"
+            >
+              ← All Patients
+            </button>
+            <h1 className="text-2xl font-bold text-blue-900">
+              {data.user?.name || "Patient"}'s Dashboard
+            </h1>
+          </div>
           <button
             onClick={handleAddMedication}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition"

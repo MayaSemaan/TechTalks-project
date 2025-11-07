@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import ChartComponent from "../../../../../components/ChartComponent.jsx";
 
@@ -101,6 +101,7 @@ const generateDosesForDay = (med, day) => {
 
 export default function FamilyPatientDashboard() {
   const { familyId, patientId } = useParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -233,54 +234,99 @@ export default function FamilyPatientDashboard() {
   };
 
   // ✅ Filtered medications with start/end date check
+  // ✅ Check if a med is active for a specific day based on schedule
+  const isMedForDay = (med, day) => {
+    if (!med.startDate) return false;
+
+    const start = new Date(med.startDate);
+    const end = med.endDate ? new Date(med.endDate) : null;
+    const d = new Date(day);
+
+    if (d < start || (end && d > end)) return false;
+
+    switch (med.schedule) {
+      case "daily":
+        return true;
+
+      case "weekly":
+        return d.getDay() === start.getDay();
+
+      case "monthly":
+        return d.getDate() === start.getDate();
+
+      case "custom":
+        if (!med.customInterval) return false;
+        const num = med.customInterval.number || 1;
+        const unit = med.customInterval.unit || "day";
+
+        let isScheduledDay = false;
+
+        if (unit === "day") {
+          const diffDays = Math.floor((d - start) / (1000 * 60 * 60 * 24));
+          isScheduledDay = diffDays >= 0 && diffDays % num === 0;
+        } else if (unit === "week") {
+          const diffDays = Math.floor((d - start) / (1000 * 60 * 60 * 24));
+          // Check weeks interval AND day of week matches
+          isScheduledDay = diffDays >= 0 && diffDays % (num * 7) === 0;
+        } else if (unit === "month") {
+          const monthsDiff =
+            (d.getFullYear() - start.getFullYear()) * 12 +
+            (d.getMonth() - start.getMonth());
+          isScheduledDay =
+            monthsDiff >= 0 &&
+            monthsDiff % num === 0 &&
+            d.getDate() === start.getDate();
+        }
+
+        return isScheduledDay;
+
+      default:
+        return false;
+    }
+  };
+
+  // ✅ Generate doses for a day
+  const generateDosesWithStatus = (med, day) => {
+    const d = new Date(day);
+    const isForToday = isMedForDay(med, d);
+
+    return (med.times || []).map((time, idx) => {
+      const existingDose = (med.doses || []).find(
+        (dose) => isSameDay(dose.date, d) && dose.time === time
+      );
+
+      const dose = existingDose || {
+        doseId: `${d.toISOString()}-${idx}`,
+        date: d.toISOString(),
+        time,
+        taken: null,
+      };
+
+      return {
+        ...dose,
+        displayStatus: isForToday
+          ? dose.taken === true
+            ? "Taken"
+            : dose.taken === false
+            ? "Missed"
+            : "Pending"
+          : "Not for selected day",
+      };
+    });
+  };
+
+  // ✅ Updated filteredMeds
   const filteredMeds = useMemo(() => {
     const day = new Date(selectedDate);
+
     return (data.medications || [])
       .map((med) => {
-        // 1️⃣ get existing doses for the selected day
-        const existingDoses = (med.doses || []).filter((d) =>
-          isSameDay(d.date, day)
-        );
-
-        // 2️⃣ generate missing doses based on schedule/times
-        const generatedDoses = (med.times || [])
-          .map((time, idx) => {
-            if (!existingDoses.some((d) => d.time === time)) {
-              return {
-                doseId: `${day.toISOString()}-${idx}`,
-                date: new Date(day).toISOString(),
-                time,
-                taken: null,
-              };
-            }
-            return null;
-          })
-          .filter(Boolean);
-
-        const allDosesForDay = [...existingDoses, ...generatedDoses];
-
-        // 3️⃣ map displayStatus
-        const dosesWithStatus = allDosesForDay.map((d) => {
-          const medStart = new Date(med.startDate);
-          const medEnd = med.endDate ? new Date(med.endDate) : null;
-          const inRange = day >= medStart && (!medEnd || day <= medEnd);
-
-          return {
-            ...d,
-            displayStatus: inRange
-              ? d.taken === true
-                ? "Taken"
-                : d.taken === false
-                ? "Missed"
-                : "Pending"
-              : "Not for selected day",
-          };
-        });
+        const dosesForDay = generateDosesWithStatus(med, day);
 
         return {
           ...med,
           filteredDoses: medStatusFilter
-            ? dosesWithStatus.filter((d) =>
+            ? dosesForDay.filter((d) =>
                 medStatusFilter === "taken"
                   ? d.displayStatus === "Taken"
                   : medStatusFilter === "missed"
@@ -289,7 +335,7 @@ export default function FamilyPatientDashboard() {
                   ? d.displayStatus === "Pending"
                   : true
               )
-            : dosesWithStatus.sort((a, b) =>
+            : dosesForDay.sort((a, b) =>
                 (a.time || "00:00").localeCompare(b.time || "00:00")
               ),
         };
@@ -339,9 +385,17 @@ export default function FamilyPatientDashboard() {
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <header className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-900">
-            {data.user?.name || "Patient"}'s Dashboard
-          </h1>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.push(`/dashboard/family/${familyId}`)}
+              className="bg-gray-300 text-gray-800 px-3 py-1 rounded hover:bg-gray-400 transition"
+            >
+              ← All Patients
+            </button>
+            <h1 className="text-2xl font-bold text-blue-900">
+              {data.user?.name || "Patient"}'s Dashboard
+            </h1>
+          </div>
         </header>
 
         {/* Charts */}
@@ -425,6 +479,27 @@ export default function FamilyPatientDashboard() {
                     <p className="text-sm text-gray-700">
                       {med.dosage} {med.unit} ({med.type})
                     </p>
+
+                    <p className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium">Start Date:</span>{" "}
+                      {med.startDate
+                        ? new Date(med.startDate).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "N/A"}
+                    </p>
+                    {med.endDate && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        <span className="font-medium">End Date:</span>{" "}
+                        {new Date(med.endDate).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-600 mt-1">
                       <span className="font-medium">Frequency:</span>{" "}
                       {med.schedule === "custom"

@@ -134,20 +134,25 @@ export default function SingleReportPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 via-blue-100 to-blue-200 py-10 px-6">
       <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-8 border border-blue-200 relative">
-        <button
-          onClick={handleBack}
-          className="absolute top-4 right-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition"
-        >
-          ← Back to Dashboard
-        </button>
+        {/* Responsive Back Button */}
+        <div className="mb-6 flex justify-between items-start sm:justify-end">
+          <button
+            onClick={handleBack}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition"
+          >
+            ← Back to Dashboard
+          </button>
+        </div>
 
-        <h1 className="text-3xl font-bold text-blue-900 mb-4">
+        {/* Report Title */}
+        <h1 className="text-3xl font-bold text-blue-900 mb-4 break-words">
           {report.title || "Untitled Report"}
         </h1>
-        <p className="text-gray-700 mb-6">
+        <p className="text-gray-700 mb-6 break-words">
           {report.description || "No description"}
         </p>
 
+        {/* Report Info */}
         <div className="space-y-3 text-gray-600">
           <p>
             <span className="font-semibold text-blue-800">Doctor:</span>{" "}
@@ -163,6 +168,7 @@ export default function SingleReportPage() {
           </p>
         </div>
 
+        {/* Report Files */}
         {report.fileUrl && (
           <div className="mt-8 flex flex-wrap gap-4">
             <a

@@ -43,6 +43,9 @@ export default function EditPatientMedicationModal({
   const [successMessage, setSuccessMessage] = useState("");
   const [timesError, setTimesError] = useState(""); // NEW STATE FOR TIMES VALIDATION
 
+  // Check if any time input is empty
+  const hasEmptyTime = med.times.some((t) => !t || t.trim() === "");
+
   const unitOptions = ["mg", "ml", "pills", "drops"];
   const typeOptions = ["tablet", "capsule", "syrup", "injection"];
 
@@ -404,6 +407,12 @@ export default function EditPatientMedicationModal({
             {timesError && (
               <p className="text-gray-600 text-sm mt-1 italic">{timesError}</p>
             )}
+
+            {hasEmptyTime && (
+              <p className="text-red-500 text-sm mt-1">
+                Please fill in all times before saving.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -445,7 +454,12 @@ export default function EditPatientMedicationModal({
             {/* Save button always clickable */}
             <button
               type="submit"
-              className="px-4 py-2 rounded text-white bg-blue-500 hover:bg-blue-600"
+              className={`px-4 py-2 rounded text-white ${
+                hasEmptyTime
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-500 hover:bg-blue-600"
+              }`}
+              disabled={hasEmptyTime}
             >
               Save
             </button>

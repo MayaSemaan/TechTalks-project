@@ -61,7 +61,7 @@ export default function UploadReportPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title || !file) {
-      setErrorMessage("Title and file are required.");
+      setErrorMessage("All fields are required.");
       return setTimeout(() => setErrorMessage(""), 3000);
     }
 
@@ -163,7 +163,7 @@ export default function UploadReportPage() {
         )}
         {successMessage && (
           <div className="absolute inset-0 flex justify-center items-center">
-            <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg text-center animate-fadeIn">
+            <div className="bg-blue-500 text-white px-6 py-4 rounded-lg shadow-lg text-center animate-fadeIn">
               {successMessage}
             </div>
           </div>

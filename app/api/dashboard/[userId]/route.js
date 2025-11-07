@@ -6,17 +6,11 @@ import User from "../../../../models/User.js";
 import { calculateCompliance } from "../../../../lib/complianceHelper.js";
 import { authenticate } from "../../../../middlewares/auth.js";
 
-function isMedicationForToday(med) {
-  const today = new Date();
+// ---------- Helper: check if med should be taken on a given date ----------
+function isMedicationForDate(med, date) {
   const start = new Date(med.startDate);
   const end = med.endDate ? new Date(med.endDate) : null;
-
-  // Normalize to date-only (ignore timezone)
-  const todayDate = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  );
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const startDate = new Date(
     start.getFullYear(),
     start.getMonth(),
@@ -24,50 +18,67 @@ function isMedicationForToday(med) {
   );
 
   if (isNaN(start)) return false;
-  if (end && todayDate > end) return false;
-  if (todayDate < startDate) return false;
+  if (end && d > end) return false;
+  if (d < startDate) return false;
 
-  const diffDays = Math.floor((todayDate - startDate) / (1000 * 60 * 60 * 24));
+  const diffDays = Math.floor((d - startDate) / (1000 * 60 * 60 * 24));
 
   switch (med.schedule) {
     case "daily":
       return true;
-
     case "weekly":
-      return todayDate.getDay() === startDate.getDay();
-
-    case "monthly": {
-      const monthsDiff =
-        (todayDate.getFullYear() - startDate.getFullYear()) * 12 +
-        (todayDate.getMonth() - startDate.getMonth());
-      return (
-        monthsDiff >= 0 &&
-        monthsDiff % 1 === 0 && // every 1 month
-        todayDate.getDate() === startDate.getDate()
-      );
-    }
-
+      return d.getDay() === startDate.getDay();
+    case "monthly":
+      return d.getDate() === startDate.getDate();
     case "custom":
-      const interval = med.customInterval?.number || 1;
+      const number = med.customInterval?.number || 1;
       const unit = med.customInterval?.unit || "day";
-      if (unit === "day") return diffDays % interval === 0;
-      if (unit === "week") return diffDays % (7 * interval) === 0;
+      if (unit === "day") return diffDays % number === 0;
+      if (unit === "week")
+        return (
+          Math.floor(diffDays / 7) % number === 0 &&
+          d.getDay() === startDate.getDay()
+        );
       if (unit === "month") {
         const monthsDiff =
-          (todayDate.getFullYear() - startDate.getFullYear()) * 12 +
-          (todayDate.getMonth() - startDate.getMonth());
-        return (
-          monthsDiff >= 0 &&
-          monthsDiff % interval === 0 &&
-          todayDate.getDate() === startDate.getDate()
-        );
+          (d.getFullYear() - startDate.getFullYear()) * 12 +
+          (d.getMonth() - startDate.getMonth());
+        return monthsDiff % number === 0 && d.getDate() === startDate.getDate();
       }
-
       return false;
-
     default:
       return false;
   }
+}
+
+// ---------- Helper: generate doses for a med on a selected day ----------
+function getFilteredDosesForMed(med, selectedDate) {
+  if (!med || !med.times?.length) return [];
+
+  const date = new Date(selectedDate);
+  date.setHours(0, 0, 0, 0);
+  const dayStr = date.toISOString().split("T")[0];
+
+  // Check if medication occurs on this day
+  if (!isMedicationForDate(med, date)) return [];
+
+  // Generate doses and preserve existing backend statuses
+  return med.times.map((time, idx) => {
+    const doseId = `${med._id}-${idx}-${dayStr}`;
+
+    const existingDose = med.doses?.find(
+      (d) =>
+        d.doseId === doseId &&
+        new Date(d.date).toDateString() === date.toDateString()
+    );
+
+    return {
+      doseId,
+      date: date.toISOString(),
+      time,
+      taken: existingDose?.taken ?? null, // preserves taken/missed
+    };
+  });
 }
 
 export async function GET(req, { params }) {
@@ -90,85 +101,60 @@ export async function GET(req, { params }) {
         { status: 404 }
       );
 
-    const statusFilter = searchParams.get("status");
-    const medFromDate = searchParams.get("fromDate");
-    const medToDate = searchParams.get("toDate");
-
     const medications = await Medication.find({ userId });
 
-    const medicationsData = medications.map((med) => {
-      // filter doses by query params
-      const filteredDoses = med.doses.filter((dose) => {
-        const doseDate = new Date(dose.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-        if (medFromDate && doseDate < new Date(`${medFromDate}T00:00:00Z`))
-          return false;
-        if (medToDate && doseDate > new Date(`${medToDate}T23:59:59Z`))
-          return false;
-        if (statusFilter === "taken" && dose.taken !== true) return false;
-        if (statusFilter === "missed" && dose.taken !== false) return false;
+    const medicationsData = [];
+    for (const med of medications) {
+      const medObj = med.toObject();
 
-        return true;
-      });
+      // Generate today’s doses without overwriting existing doses
+      const todayDoses = getFilteredDosesForMed(medObj, today);
 
-      // ✅ If no dose exists for today but med should appear today → add a pending dose
-      const todayStr = new Date().toDateString();
-      const hasTodayDose = med.doses.some(
-        (d) => new Date(d.date).toDateString() === todayStr
-      );
-
-      if (!hasTodayDose && isMedicationForToday(med)) {
-        med.times.forEach((time) => {
-          filteredDoses.push({
-            doseId: `temp-${Math.random().toString(36).substring(2, 9)}`,
-            date: new Date(),
-            time,
-            taken: null,
-          });
-        });
+      // Merge generated doses with DB doses (if missing, append)
+      let updated = false;
+      for (const td of todayDoses) {
+        if (!medObj.doses?.some((d) => d.doseId === td.doseId)) {
+          medObj.doses.push(td);
+          updated = true;
+        }
       }
 
-      const dosesTaken = med.doses.filter((d) => d.taken === true).length;
-      const dosesMissed = med.doses.filter((d) => d.taken === false).length;
-      const dosesPending = med.doses.filter((d) => d.taken === null).length;
-      const totalDoses = med.doses.length;
+      if (updated) {
+        await Medication.updateOne(
+          { _id: medObj._id },
+          { $set: { doses: medObj.doses } }
+        );
+      }
+
+      // Build filteredDoses for frontend (today only)
+      const filteredDoses = medObj.doses.filter(
+        (d) => new Date(d.date).toDateString() === today.toDateString()
+      );
+
+      const dosesTaken = filteredDoses.filter((d) => d.taken === true).length;
+      const dosesMissed = filteredDoses.filter((d) => d.taken === false).length;
+      const dosesPending = filteredDoses.filter((d) => d.taken === null).length;
+      const totalDoses = filteredDoses.length;
       const compliance = totalDoses ? (dosesTaken / totalDoses) * 100 : 0;
 
-      return {
-        _id: med._id,
-        name: med.name,
-        dosage: med.dosage,
-        unit: med.unit,
-        type: med.type,
-        schedule: med.schedule,
-        customInterval: med.customInterval || null,
-        startDate: med.startDate ? med.startDate.toISOString() : null,
-        endDate: med.endDate ? med.endDate.toISOString() : null,
-        times: Array.isArray(med.times) ? med.times : [],
-        reminders: med.reminders,
-        notes: med.notes,
+      medicationsData.push({
+        ...medObj,
+        filteredDoses,
         dosesTaken,
         dosesMissed,
         dosesPending,
         compliance: parseFloat(compliance.toFixed(2)),
-        filteredDoses,
-        // ✅ Add this line:
-        isForToday: isMedicationForToday(med),
-      };
-    });
+        isForToday: isMedicationForDate(medObj, today),
+      });
+    }
 
     // Reports
-    const reportFromDate = searchParams.get("reportFromDate");
-    const reportToDate = searchParams.get("reportToDate");
-    const reportQuery = { patient: userId };
-    if (reportFromDate || reportToDate) {
-      reportQuery.createdAt = {};
-      if (reportFromDate)
-        reportQuery.createdAt.$gte = new Date(`${reportFromDate}T00:00:00Z`);
-      if (reportToDate)
-        reportQuery.createdAt.$lte = new Date(`${reportToDate}T23:59:59Z`);
-    }
-    const reportsRaw = await Report.find(reportQuery).sort({ createdAt: -1 });
+    const reportsRaw = await Report.find({ patient: userId }).sort({
+      createdAt: -1,
+    });
     const reports = reportsRaw.map((r) => ({
       _id: r._id,
       title: r.title,
@@ -176,7 +162,7 @@ export async function GET(req, { params }) {
       uploadedAt: r.createdAt ? r.createdAt.toISOString() : null,
     }));
 
-    // Chart data (unchanged)
+    // Chart Data
     const chartData = [];
     const end = new Date();
     const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);

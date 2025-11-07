@@ -13,111 +13,123 @@ import {
 } from "../../../utils/api.js";
 import EditPatientMedicationModal from "../../../components/EditPatientMedicationModal.jsx";
 
+// ---------- Helper: check if two dates are the same day ----------
+function isSameDay(d1, d2) {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+// ---------- Helper: check if a med occurs on selected date ----------
 function isMedicationForDate(med, selectedDate) {
-  if (!med || !med.startDate) return false;
+  if (!med?.startDate) return false;
 
-  const startDate = new Date(med.startDate);
-  const endDate = med.endDate ? new Date(med.endDate) : null;
-
-  // normalize (zero time)
-  startDate.setHours(0, 0, 0, 0);
+  const start = new Date(med.startDate);
+  const end = med.endDate ? new Date(med.endDate) : null;
   const sDate = new Date(selectedDate);
-  sDate.setHours(0, 0, 0, 0);
 
-  // range check
-  if (endDate) {
-    const e = new Date(endDate);
-    e.setHours(0, 0, 0, 0);
-    if (sDate > e) return false;
-  }
-  if (sDate < startDate) return false;
+  // Reset time
+  start.setHours(0, 0, 0, 0);
+  sDate.setHours(0, 0, 0, 0);
+  if (end) end.setHours(0, 0, 0, 0);
+
+  if (sDate < start) return false;
+  if (end && sDate > end) return false;
 
   const schedule = med.schedule || "daily";
+  const customNumber = med?.customInterval?.number ?? 1;
+  let customUnit = (med?.customInterval?.unit ?? "day").toLowerCase();
+  if (customUnit.endsWith("s")) customUnit = customUnit.slice(0, -1);
 
-  const diffDays = Math.floor((sDate - startDate) / (1000 * 60 * 60 * 24));
-
-  // helpers to read custom interval (accept different shapes)
-  const customNumber = med?.customInterval?.number ?? med?.customValue ?? 1;
-  let customUnit =
-    med?.customInterval?.unit ?? med?.unit ?? med?.customUnit ?? "day"; // try several names
-
-  // normalize unit
-  customUnit = ("" + customUnit).toLowerCase();
-  if (customUnit.endsWith("s")) customUnit = customUnit.slice(0, -1); // "days" -> "day"
+  const diffDays = Math.floor((sDate - start) / (1000 * 60 * 60 * 24));
 
   switch (schedule) {
     case "daily":
       return true;
 
     case "weekly":
-      // occurs on same weekday as startDate
-      return startDate.getDay() === sDate.getDay();
+      return start.getDay() === sDate.getDay();
 
-    case "monthly": {
-      const diffMonths =
-        (sDate.getFullYear() - startDate.getFullYear()) * 12 +
-        (sDate.getMonth() - startDate.getMonth());
+    case "monthly":
+      return (
+        start.getDate() === sDate.getDate() ||
+        (start.getDate() > 28 && sDate.getDate() >= 28)
+      );
 
-      if (diffMonths < 0) return false; // before start date
-
-      const sameDay =
-        startDate.getDate() === sDate.getDate() ||
-        (startDate.getDate() > 28 && sDate.getDate() >= 28);
-
-      return diffMonths % 1 === 0 && sameDay; // every month
-    }
-
-    case "custom": {
-      if (!customNumber || !customUnit) return false;
-
-      if (customUnit === "day") {
-        return diffDays % Number(customNumber) === 0;
-      }
-
+    case "custom":
+      if (customUnit === "day") return diffDays % customNumber === 0;
       if (customUnit === "week") {
         const diffWeeks = Math.floor(diffDays / 7);
-        // require same weekday as startDate and match every N weeks
         return (
-          diffWeeks % Number(customNumber) === 0 &&
-          startDate.getDay() === sDate.getDay()
+          diffWeeks % customNumber === 0 && start.getDay() === sDate.getDay()
         );
       }
-
       if (customUnit === "month") {
         const diffMonths =
-          (sDate.getFullYear() - startDate.getFullYear()) * 12 +
-          (sDate.getMonth() - startDate.getMonth());
-        if (diffMonths < 0) return false;
-
-        const sameDay =
-          sDate.getDate() === startDate.getDate() ||
-          (startDate.getDate() > 28 && sDate.getDate() >= 28);
-
-        return diffMonths % Number(customNumber) === 0 && sameDay;
+          (sDate.getFullYear() - start.getFullYear()) * 12 +
+          (sDate.getMonth() - start.getMonth());
+        return (
+          diffMonths % customNumber === 0 &&
+          (start.getDate() === sDate.getDate() ||
+            (start.getDate() > 28 && sDate.getDate() >= 28))
+        );
       }
-
       return false;
-    }
 
     default:
       return false;
   }
 }
 
-// --- Helper: generate doses for a single target date (used when adding new med)
-function generateDosesForDate(times, med, targetDate) {
-  if (!Array.isArray(times) || times.length === 0) return [];
+// ---------- Helper: generate filtered doses for a med on a selected day ----------
+function getFilteredDosesForMed(med, selectedDate) {
+  if (!med?.times?.length) return [];
 
-  const date = new Date(targetDate);
+  const date = new Date(selectedDate);
   date.setHours(0, 0, 0, 0);
   const dayStr = date.toISOString().split("T")[0];
 
-  return times.map((time, idx) => ({
-    doseId: `${med._id || med.id || "new"}-${idx}-${dayStr}`,
-    date: date.toISOString(),
-    time,
-    taken: null,
-  }));
+  return med.times.map((time, idx) => {
+    const doseId = `${med._id}-${idx}-${dayStr}`;
+
+    // check backend
+    const existingDose = med.doses?.find(
+      (d) => d.doseId === doseId && isSameDay(new Date(d.date), date)
+    );
+
+    // fallback to previous filteredDoses (if present)
+    const prevDose = med.filteredDoses?.find((d) => d.doseId === doseId);
+
+    return {
+      doseId,
+      date: date.toISOString(),
+      time,
+      taken: existingDose?.taken ?? prevDose?.taken ?? null,
+    };
+  });
+}
+
+// ---------- Helper: generate doses for selected day ----------
+function generateDosesForDate(times, med, selectedDate, existingDoses = []) {
+  if (!times?.length) return [];
+
+  const date = new Date(selectedDate);
+  date.setHours(0, 0, 0, 0);
+  const dayStr = date.toISOString().split("T")[0];
+
+  return times.map((time, idx) => {
+    const doseId = `${med._id || med.id || "new"}-${idx}-${dayStr}`;
+    const existingDose = existingDoses.find((d) => d.doseId === doseId);
+
+    return {
+      doseId,
+      date: date.toISOString(),
+      time,
+      taken: existingDose?.taken ?? null, // ✅ preserve existing taken/missed
+    };
+  });
 }
 
 // ---------- Dynamic Imports for Charts ----------
@@ -160,6 +172,58 @@ export const formatDateNice = (date) => {
   });
 };
 
+// ---------- DoseItem Component ----------
+function DoseItem({ dose, medId, selectedDate, onToggle }) {
+  const selectedDay = new Date(selectedDate);
+  const doseDay = new Date(dose.date);
+
+  // ✅ Use helper instead of string comparison
+  const isForToday = isSameDay(selectedDay, doseDay);
+
+  // Determine status
+  let statusText, statusColor;
+
+  if (!isForToday) {
+    statusText = "Not for selected day";
+    statusColor = "text-gray-400";
+  } else if (dose.taken === true) {
+    statusText = "Taken";
+    statusColor = "text-blue-600";
+  } else if (dose.taken === false) {
+    statusText = "Missed";
+    statusColor = "text-red-600";
+  } else {
+    statusText = "Pending";
+    statusColor = "text-gray-600";
+  }
+
+  return (
+    <div className="flex justify-between items-center text-sm">
+      <span>
+        {dose.time || "-"} –{" "}
+        <span className={`font-semibold ${statusColor}`}>{statusText}</span>
+      </span>
+
+      {isForToday && (
+        <div className="flex gap-1">
+          <button
+            onClick={() => onToggle(medId, dose.doseId, true, dose.date)}
+            className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
+          >
+            Taken
+          </button>
+          <button
+            onClick={() => onToggle(medId, dose.doseId, false, dose.date)}
+            className="px-2 py-1 bg-red-500 text-white rounded text-xs"
+          >
+            Missed
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- Main Component ----------
 export default function PatientDashboardPage() {
   const { userId } = useParams();
@@ -200,42 +264,44 @@ export default function PatientDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const res = await fetchDashboardData(userId);
       if (!res || res.error)
         throw new Error(res?.error || "Failed to fetch dashboard");
 
-      const medsWithConfirm = (res.medications || []).map((m) => {
-        const med = { ...m, showDeleteConfirm: false };
-        const selectedDate = medFilterDay ? new Date(medFilterDay) : new Date();
+      const selectedDate = medFilterDay ? new Date(medFilterDay) : new Date();
+      selectedDate.setHours(0, 0, 0, 0);
+      const dayStr = selectedDate.toISOString().split("T")[0];
 
-        // If API didn't return doses for today, generate them
-        const isForToday = isMedicationForDate(med, selectedDate);
+      const medsWithDoses = (res.medications || []).map((med) => {
+        const filteredDoses = getFilteredDosesForMed(med, selectedDate);
 
-        if (isForToday && med.times?.length > 0) {
-          // Always regenerate doses for selected day if missing
-          const hasDoseForDay = (med.doses || []).some((d) => {
-            const dDay = new Date(d.date).toISOString().split("T")[0];
-            const sDay = selectedDate.toISOString().split("T")[0];
-            return dDay === sDay;
-          });
-
-          if (!hasDoseForDay) {
-            med.doses = generateDosesForDate(med.times, med, selectedDate);
-          }
-
-          med.notForSelectedDay = false;
-        } else {
-          med.doses = [];
-          med.notForSelectedDay = true;
-        }
-
-        return med;
+        return {
+          ...med,
+          filteredDoses,
+          notForSelectedDay: !isMedicationForDate(med, selectedDate),
+        };
       });
+
+      // Merge localStorage doses for **selected date**, not just today
+      if (typeof window !== "undefined") {
+        const localDosesKey = `doses-${userId}-${dayStr}`;
+        const savedDoses = JSON.parse(
+          localStorage.getItem(localDosesKey) || "[]"
+        );
+
+        medsWithDoses.forEach((med) => {
+          med.filteredDoses = med.filteredDoses.map((d) => {
+            const local = savedDoses.find((ld) => ld.doseId === d.doseId);
+            return local ? { ...d, taken: local.taken } : d;
+          });
+        });
+      }
 
       setData({
         user: res.user,
-        meds: medsWithConfirm,
+        meds: medsWithDoses,
         reports: res.reports || [],
         chartData: res.chartData || [],
         metrics: { adherencePercent: res.metrics?.adherencePercent || 0 },
@@ -257,44 +323,85 @@ export default function PatientDashboardPage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
+  // ---------- Update filtered doses when selected date changes ----------
+  useEffect(() => {
+    const selectedDate = medFilterDay ? new Date(medFilterDay) : new Date();
+    selectedDate.setHours(0, 0, 0, 0);
+
+    setData((prev) => ({
+      ...prev,
+      meds: prev.meds.map((med) => {
+        const isForDay = isMedicationForDate(med, selectedDate);
+
+        if (!isForDay) {
+          return { ...med, filteredDoses: [], notForSelectedDay: true };
+        }
+
+        // ✅ Merge backend doses for selected day
+        const filteredDoses = getFilteredDosesForMed(med, selectedDate);
+
+        return { ...med, filteredDoses, notForSelectedDay: false };
+      }),
+    }));
+  }, [medFilterDay]);
+
   // --- Toggle Dose Status ---
   const handleDoseToggle = async (medId, doseId, newStatus, doseDate) => {
-    // newStatus should be true / false / null
+    const selectedDate = new Date(doseDate);
+    selectedDate.setHours(0, 0, 0, 0);
+    const dayStr = selectedDate.toISOString().split("T")[0];
+
+    setData((prev) => {
+      const updatedMeds = prev.meds.map((med) => {
+        if (med._id !== medId) return med;
+
+        const updatedFilteredDoses = med.filteredDoses.map((d) =>
+          d.doseId === doseId ? { ...d, taken: newStatus } : d
+        );
+
+        const updatedBackendDoses = [...(med.doses || [])];
+        const existingIndex = updatedBackendDoses.findIndex(
+          (d) =>
+            d.doseId === doseId && isSameDay(new Date(d.date), selectedDate)
+        );
+
+        if (existingIndex !== -1) {
+          updatedBackendDoses[existingIndex].taken = newStatus;
+        } else {
+          updatedBackendDoses.push({
+            doseId,
+            date: selectedDate.toISOString(),
+            time:
+              med.times.find((_, i) => `${med._id}-${i}-${dayStr}` === doseId)
+                ?.time || "",
+            taken: newStatus,
+          });
+        }
+
+        return {
+          ...med,
+          filteredDoses: updatedFilteredDoses,
+          doses: updatedBackendDoses,
+        };
+      });
+
+      // Save doses for **any selected date** to localStorage
+      if (typeof window !== "undefined") {
+        const localDosesKey = `doses-${userId}-${dayStr}`;
+        const dosesForDay = updatedMeds
+          .flatMap((m) => m.filteredDoses || [])
+          .filter((d) => isSameDay(new Date(d.date), selectedDate));
+        localStorage.setItem(localDosesKey, JSON.stringify(dosesForDay));
+      }
+
+      return { ...prev, meds: updatedMeds };
+    });
+
     try {
-      // Optimistic UI update
-      setData((prev) => ({
-        ...prev,
-        meds: prev.meds.map((med) => {
-          if (med._id !== medId) return med;
-          const updatedDoses = med.filteredDoses.map((d) =>
-            d.doseId === doseId ? { ...d, taken: newStatus } : d
-          );
-          return { ...med, filteredDoses: updatedDoses };
-        }),
-      }));
-
-      // Call API, pass date of the dose
-      const result = await updateDoseStatus(medId, doseId, newStatus, doseDate);
-
-      if (!result.success) throw new Error(result.error || "Failed to update");
-
-      // Update dose from API response to be fully consistent
-      setData((prev) => ({
-        ...prev,
-        meds: prev.meds.map((med) => {
-          if (med._id !== medId) return med;
-          const updatedDoses = med.filteredDoses.map((d) =>
-            d.doseId === result.updatedDose.doseId
-              ? { ...d, ...result.updatedDose }
-              : d
-          );
-          return { ...med, filteredDoses: updatedDoses };
-        }),
-      }));
+      await updateDoseStatus(medId, doseId, newStatus, doseDate);
     } catch (err) {
-      console.error(err);
-      alert(err.message);
-      loadData(); // fallback to refresh if API failed
+      console.error("Error updating dose:", err);
+      loadData(); // rollback if API fails
     }
   };
 
@@ -342,10 +449,7 @@ export default function PatientDashboardPage() {
 
   // --- Save Edited Medication ---
   const handleSaveEdit = async (medData) => {
-    if (!medData?._id) {
-      alert("Medication ID is required");
-      return;
-    }
+    if (!medData?._id) return alert("Medication ID is required");
 
     try {
       const res = await fetch(`/api/medications/${medData._id}`, {
@@ -357,82 +461,31 @@ export default function PatientDashboardPage() {
         body: JSON.stringify(medData),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update medication");
+      const dataRes = await res.json();
+      if (!res.ok)
+        throw new Error(dataRes.error || "Failed to update medication");
 
-      // ✅ Instantly update local state and recheck if the med is for selected day
+      // Update local state
       setData((prev) => {
         const updatedMeds = prev.meds.map((m) => {
           if (m._id !== medData._id) return m;
 
-          const updatedMed = { ...m, ...data.medication };
-
-          const schedule = updatedMed.schedule || "daily";
-          const times = updatedMed.times || [];
-          const startDate = updatedMed.startDate
-            ? new Date(updatedMed.startDate)
-            : new Date();
-          const customInterval = updatedMed.customInterval || {
-            number: 1,
-            unit: "day",
-          };
-
+          const updatedMed = { ...m, ...dataRes.medication };
           const selectedDay = medFilterDay
             ? new Date(medFilterDay)
             : new Date();
-          const selectedDayStr = selectedDay.toISOString().split("T")[0];
+          selectedDay.setHours(0, 0, 0, 0);
 
-          // 🧠 Determine if medication is for the selected day
-          const diffTime = selectedDay - startDate;
-          if (diffTime < 0) {
-            updatedMed.filteredDoses = [];
-            updatedMed.notForSelectedDay = true;
-            return updatedMed;
-          }
+          const isForToday = isMedicationForDate(updatedMed, selectedDay);
 
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-          let isForToday = false;
-
-          switch (schedule) {
-            case "daily":
-              isForToday = true;
-              break;
-            case "weekly":
-              isForToday = startDate.getDay() === selectedDay.getDay();
-              break;
-            case "monthly":
-              isForToday = startDate.getDate() === selectedDay.getDate();
-              break;
-            case "custom":
-              const { number, unit } = customInterval;
-
-              if (unit === "day") {
-                isForToday = diffDays % number === 0;
-              } else if (unit === "week") {
-                const diffWeeks = Math.floor(diffDays / 7);
-                isForToday =
-                  diffWeeks % number === 0 &&
-                  selectedDay.getDay() === startDate.getDay();
-              } else if (unit === "month") {
-                const diffMonths =
-                  (selectedDay.getFullYear() - startDate.getFullYear()) * 12 +
-                  (selectedDay.getMonth() - startDate.getMonth());
-                isForToday =
-                  diffMonths % number === 0 &&
-                  selectedDay.getDate() === startDate.getDate();
-              }
-              break;
-          }
-
-          // 🕒 Build or clear doses based on result
-          if (isForToday) {
-            updatedMed.filteredDoses = times.map((time, idx) => ({
-              doseId: `${m._id}-${idx}-${selectedDayStr}`,
-              time,
-              date: selectedDay.toISOString(),
-              taken: null,
-            }));
+          if (isForToday && updatedMed.times?.length > 0) {
+            // ✅ preserve existing statuses
+            updatedMed.filteredDoses = generateDosesForDate(
+              updatedMed.times,
+              updatedMed,
+              selectedDay,
+              m.filteredDoses // pass previous filteredDoses
+            );
             updatedMed.notForSelectedDay = false;
           } else {
             updatedMed.filteredDoses = [];
@@ -445,9 +498,9 @@ export default function PatientDashboardPage() {
         return { ...prev, meds: updatedMeds };
       });
 
-      console.log(
-        "✅ Medication and doses updated successfully with full schedule logic"
-      );
+      setSuccessMessage("Medication updated successfully!");
+      setEditingMed(null);
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error("Update med error:", err);
       alert(err.message);
@@ -487,61 +540,10 @@ export default function PatientDashboardPage() {
 
   // --- Filtered Medications ---
   const filteredMeds = useMemo(() => {
-    const selectedDayStr = (medFilterDay ? new Date(medFilterDay) : new Date())
-      .toISOString()
-      .split("T")[0];
-
-    return data.meds
-      .map((med) => {
-        // 1️⃣ Get doses for selected day
-        let dosesForDay = [];
-
-        if (med.filteredDoses && med.filteredDoses.length > 0) {
-          dosesForDay = med.filteredDoses.filter((d) => {
-            const doseDay = new Date(d.date).toISOString().split("T")[0];
-            return doseDay === selectedDayStr;
-          });
-        }
-
-        // 2️⃣ If no doses exist for the day, generate from times
-        const selectedDate = new Date(selectedDayStr);
-
-        if (
-          isMedicationForDate(med, selectedDate) &&
-          (!dosesForDay || dosesForDay.length === 0) &&
-          med.times?.length > 0
-        ) {
-          dosesForDay = med.times.map((time, idx) => ({
-            doseId: `${med._id}-${idx}-${selectedDayStr}`,
-            time,
-            date: selectedDate.toISOString(),
-            taken: null,
-          }));
-        }
-
-        // 3️⃣ Deduplicate doses by doseId
-        const uniqueDoses = Array.from(
-          new Map(dosesForDay.map((d) => [d.doseId, d])).values()
-        );
-
-        // 4️⃣ Apply status filter
-        const filteredDoses = uniqueDoses.filter((d) => {
-          if (!medStatusFilter) return true;
-          if (medStatusFilter === "taken") return d.taken === true;
-          if (medStatusFilter === "missed") return d.taken === false;
-          if (medStatusFilter === "pending") return d.taken == null;
-          return true;
-        });
-
-        return {
-          ...med,
-          filteredDoses,
-        };
-      })
-      .filter((med) =>
-        (med.name || "").toLowerCase().includes(medSearch.toLowerCase())
-      );
-  }, [data.meds, medSearch, medStatusFilter, medFilterDay]);
+    return data.meds.filter((med) =>
+      (med.name || "").toLowerCase().includes(medSearch.toLowerCase())
+    );
+  }, [data.meds, medSearch]);
 
   // --- Filtered Reports ---
   const filteredReports = useMemo(() => {
@@ -731,80 +733,21 @@ export default function PatientDashboardPage() {
 
                   {/* Doses */}
                   <div className="space-y-1">
-                    {med.filteredDoses?.length > 0 ? (
-                      med.filteredDoses.map((d) => {
-                        const selectedDay = new Date(medFilterDay || new Date())
-                          .toISOString()
-                          .split("T")[0];
-                        const doseDay = new Date(d.date)
-                          .toISOString()
-                          .split("T")[0];
-
-                        const isSelectedDay = selectedDay === doseDay;
-
-                        let statusText = "Pending";
-                        let statusColor = "text-gray-600";
-
-                        if (!isSelectedDay) {
-                          statusText = "Not for selected day";
-                          statusColor = "text-gray-400";
-                        } else if (d.taken === true) {
-                          statusText = "Taken";
-                          statusColor = "text-blue-600";
-                        } else if (d.taken === false) {
-                          statusText = "Missed";
-                          statusColor = "text-red-600";
-                        }
-
-                        return (
-                          <div
-                            key={d.doseId || d.time}
-                            className="flex justify-between items-center text-sm"
-                          >
-                            <span>
-                              {d.time || "-"} –{" "}
-                              <span className={`font-semibold ${statusColor}`}>
-                                {statusText}
-                              </span>
-                            </span>
-
-                            {/* Show buttons only if the dose belongs to selected day */}
-                            {isSelectedDay && (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() =>
-                                    handleDoseToggle(
-                                      med._id,
-                                      d.doseId,
-                                      true,
-                                      d.date
-                                    )
-                                  }
-                                  className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                                >
-                                  Taken
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleDoseToggle(
-                                      med._id,
-                                      d.doseId,
-                                      false,
-                                      d.date
-                                    )
-                                  }
-                                  className="px-2 py-1 bg-red-500 text-white rounded text-xs"
-                                >
-                                  Missed
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
+                    {med.filteredDoses.length > 0 ? (
+                      med.filteredDoses.map((d) => (
+                        <DoseItem
+                          key={d.doseId}
+                          dose={d}
+                          medId={med._id}
+                          selectedDate={medFilterDay || new Date()}
+                          onToggle={handleDoseToggle}
+                        />
+                      ))
                     ) : (
                       <p className="text-gray-500 text-sm">
-                        No doses for selected day
+                        {med.notForSelectedDay
+                          ? "No doses for selected day"
+                          : "No doses recorded"}
                       </p>
                     )}
                   </div>
@@ -864,8 +807,10 @@ export default function PatientDashboardPage() {
                     newMed.filteredDoses = generateDosesForDate(
                       newMed.times,
                       newMed,
-                      selectedDate
+                      selectedDate,
+                      newMed.doses // existing backend doses
                     );
+
                     newMed.notForSelectedDay = false;
                   } else {
                     newMed.filteredDoses = [];
@@ -940,50 +885,55 @@ export default function PatientDashboardPage() {
           </div>
         )}
 
-        {/* Reports */}
+        {/* Reports Section */}
         <section className="bg-white shadow-md rounded-xl p-6 space-y-4">
           <h2 className="font-semibold text-blue-900 mb-2">Reports</h2>
-          <div className="flex flex-col md:flex-row md:space-x-2 space-y-2 md:space-y-0 mb-2">
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 mb-4">
             <input
               type="text"
               placeholder="Search Reports..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full md:w-1/3 border border-gray-300 rounded px-3 py-1"
+              className="flex-1 min-w-[150px] border border-gray-300 rounded px-3 py-1"
             />
             <input
               type="date"
               value={reportDateFrom}
               onChange={(e) => setReportDateFrom(e.target.value)}
-              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+              className="flex-1 min-w-[120px] border border-gray-300 rounded px-3 py-1"
             />
             <input
               type="date"
               value={reportDateTo}
               onChange={(e) => setReportDateTo(e.target.value)}
-              className="w-full md:w-1/4 border border-gray-300 rounded px-3 py-1"
+              className="flex-1 min-w-[120px] border border-gray-300 rounded px-3 py-1"
             />
           </div>
 
           {filteredReports.length === 0 ? (
             <p className="text-gray-600">No reports found.</p>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredReports.map((r) => (
                 <div
                   key={r._id}
-                  className="bg-white shadow-md rounded-xl p-4 flex justify-between items-center"
+                  className="bg-white shadow-md rounded-xl p-4 flex flex-col justify-between"
                 >
-                  <div className="flex flex-col">
-                    <p className="font-semibold">{r.title}</p>
-                    <p className="text-sm text-gray-500">
+                  <div className="flex flex-col mb-4">
+                    <p className="font-semibold text-gray-800 truncate">
+                      {r.title}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
                       Uploaded:{" "}
                       {r.uploadedAt
                         ? new Date(r.uploadedAt).toLocaleString()
                         : "N/A"}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+
+                  <div className="flex flex-wrap gap-2 mt-auto">
                     <a
                       href={`/reports/view/${r._id}?patientId=${data.user._id}`}
                       target="_blank"
@@ -996,7 +946,7 @@ export default function PatientDashboardPage() {
                     <a
                       href={r.fileUrl}
                       download
-                      className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
+                      className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition text-sm"
                     >
                       Download
                     </a>

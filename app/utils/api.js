@@ -261,3 +261,80 @@ export async function deleteReport(reportId) {
     return { success: false, error: error.message };
   }
 }
+
+export async function addMedication(patientId, medData) {
+  try {
+    if (!medData || typeof medData !== "object") {
+      throw new Error("Medication data is required");
+    }
+
+    // --- Normalize / validate payload ---
+    const payload = {
+      name: medData.name?.trim() || "",
+      dosage: Number(medData.dosage) || 0,
+      unit: medData.unit || "mg",
+      type: medData.type || "tablet",
+      schedule: medData.schedule || "daily",
+      customInterval:
+        medData.schedule === "custom"
+          ? medData.customInterval || { number: 1, unit: "day" }
+          : undefined,
+      times: Array.isArray(medData.times)
+        ? medData.times.map((t) => {
+            // Ensure HH:MM format
+            if (/^\d{1,2}:\d{1,2}$/.test(t)) {
+              const [h, m] = t.split(":");
+              return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+            }
+            return t;
+          })
+        : [],
+      startDate: medData.startDate
+        ? new Date(medData.startDate).toISOString()
+        : new Date().toISOString(),
+      endDate: medData.endDate ? new Date(medData.endDate).toISOString() : null,
+      reminders: !!medData.reminders,
+      notes: medData.notes || "",
+      userId: medData.userId || patientId,
+    };
+
+    // --- Frontend validation before sending ---
+    if (!payload.name) throw new Error("Medication name is required");
+    if (!payload.dosage || payload.dosage <= 0)
+      throw new Error("Dosage must be greater than 0");
+    if (!payload.times.length)
+      throw new Error("At least one dose time is required");
+
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+    const res = await fetch(`/api/medications`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    if (!res.ok) {
+      console.error("addMedication failed:", data);
+      throw new Error(data.error || "Failed to add medication");
+    }
+
+    return {
+      success: true,
+      data: data.medication || {},
+    };
+  } catch (err) {
+    console.error("addMedication error:", err);
+    return { success: false, error: err.message };
+  }
+}
