@@ -127,7 +127,7 @@ function generateDosesForDate(times, med, selectedDate, existingDoses = []) {
       doseId,
       date: date.toISOString(),
       time,
-      taken: existingDose?.taken ?? null, // ✅ preserve existing taken/missed
+      taken: existingDose?.taken ?? null, // preserve existing taken/missed
     };
   });
 }
@@ -177,7 +177,7 @@ function DoseItem({ dose, medId, selectedDate, onToggle }) {
   const selectedDay = new Date(selectedDate);
   const doseDay = new Date(dose.date);
 
-  // ✅ Use helper instead of string comparison
+  // Use helper instead of string comparison
   const isForToday = isSameDay(selectedDay, doseDay);
 
   // Determine status
@@ -337,7 +337,7 @@ export default function PatientDashboardPage() {
           return { ...med, filteredDoses: [], notForSelectedDay: true };
         }
 
-        // ✅ Merge backend doses for selected day
+        // Merge backend doses for selected day
         const filteredDoses = getFilteredDosesForMed(med, selectedDate);
 
         return { ...med, filteredDoses, notForSelectedDay: false };
@@ -479,7 +479,7 @@ export default function PatientDashboardPage() {
           const isForToday = isMedicationForDate(updatedMed, selectedDay);
 
           if (isForToday && updatedMed.times?.length > 0) {
-            // ✅ preserve existing statuses
+            // preserve existing statuses
             updatedMed.filteredDoses = generateDosesForDate(
               updatedMed.times,
               updatedMed,
@@ -762,7 +762,7 @@ export default function PatientDashboardPage() {
           <EditPatientMedicationModal
             medId={editingMed._id}
             initialData={editingMed}
-            token={token} // ✅ pass token
+            token={token} // pass token
             onClose={() => setEditingMed(null)}
             onSave={handleSaveEdit}
           />

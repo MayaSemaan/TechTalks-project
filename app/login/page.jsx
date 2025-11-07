@@ -48,7 +48,7 @@ export default function Login() {
           localStorage.removeItem("savedEmail");
         }
 
-        // ✅ Redirect based on role
+        // Redirect based on role
         if (role === "doctor") {
           window.location.href = `/assign/doctor`;
         } else if (role === "family") {

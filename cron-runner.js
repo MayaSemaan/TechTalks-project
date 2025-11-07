@@ -111,7 +111,7 @@ async function runCron(timeZone = "Asia/Beirut") {
             }
           }
 
-          // ✅ Log reminder with "pending" status
+          // Log reminder with "pending" status
           try {
             await ReminderLog.create({
               userId: user._id,

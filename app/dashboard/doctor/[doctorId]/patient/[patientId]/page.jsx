@@ -81,7 +81,7 @@ const normalizeMedication = (raw) => {
 
   const num = Number(ci.number);
   let unit = ci.unit ? ci.unit.toLowerCase() : null;
-  if (unit?.endsWith("s")) unit = unit.slice(0, -1); // singular
+  if (unit?.endsWith("s")) unit = unit.slice(0, -1);
 
   // --- Compute frequency string ---
   let frequency = "N/A";
@@ -100,7 +100,7 @@ const normalizeMedication = (raw) => {
     .map((d) => d.date?.split("T")[0])
     .filter(Boolean);
 
-  const startDate = backendStart || null; // don't default to first dose
+  const startDate = backendStart || null;
 
   const endDate = backendEnd || null;
 

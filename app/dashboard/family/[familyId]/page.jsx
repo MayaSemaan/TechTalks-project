@@ -43,7 +43,7 @@ export default function FamilyDashboardPage() {
           patientId: p._id,
           patientName: p.name || "Unnamed Patient",
           patientEmail: p.email || "No email",
-          totalMedications: p.totalMedications ?? 0, // ✅ Number of meds
+          totalMedications: p.totalMedications ?? 0, // Number of meds
           totalReports: p.totalReports ?? 0,
         })),
       });

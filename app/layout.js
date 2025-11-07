@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Doctor Reports",
+  title: "HealthTrack",
   description: "Upload and view reports",
 };
 

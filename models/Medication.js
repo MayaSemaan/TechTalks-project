@@ -71,7 +71,7 @@ const MedicationSchema = new mongoose.Schema(
     },
     customInterval: {
       type: CustomIntervalSchema,
-      default: () => ({ number: 1, unit: "day" }), // added default
+      default: () => ({ number: 1, unit: "day" }),
     },
 
     times: {

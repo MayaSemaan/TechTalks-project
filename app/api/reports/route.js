@@ -9,9 +9,8 @@ import { sendNotification } from "../../utils/sendNotification.js";
 
 export const config = { api: { bodyParser: false } };
 
-// ------------------------
 // Helper: Save uploaded file
-// ------------------------
+
 const saveFile = async (file) => {
   const uploadDir = path.join(process.cwd(), "public/uploads");
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -24,9 +23,8 @@ const saveFile = async (file) => {
   return `/uploads/${fileName}`;
 };
 
-// ------------------------
 // GET reports
-// ------------------------
+
 export async function GET(req) {
   try {
     const user = await authenticate(req);
@@ -58,9 +56,8 @@ export async function GET(req) {
   }
 }
 
-// ------------------------
 // POST report (Create)
-// ------------------------
+
 export async function POST(req) {
   try {
     const user = await authenticate(req);
@@ -146,10 +143,10 @@ export async function POST(req) {
          <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
       );
 
-    // ✅ Notify linked family members (FIXED)
+    // Notify linked family members
     const familyMembers = await User.find({
       role: "family",
-      linkedPatients: report.patient._id, // ✅ correct field
+      linkedPatients: report.patient._id,
     });
 
     for (const family of familyMembers) {
@@ -170,9 +167,8 @@ export async function POST(req) {
   }
 }
 
-// ------------------------
 // PUT report (Update)
-// ------------------------
+
 export async function PUT(req) {
   try {
     const user = await authenticate(req);
@@ -209,10 +205,10 @@ export async function PUT(req) {
          <p><a href="${reportLink}" target="_blank">${reportLink}</a></p>`
       );
 
-    // ✅ Notify linked family (FIXED)
+    // Notify linked family
     const familyMembers = await User.find({
       role: "family",
-      linkedPatients: updated.patient._id, // ✅ correct field
+      linkedPatients: updated.patient._id,
     });
 
     for (const family of familyMembers) {

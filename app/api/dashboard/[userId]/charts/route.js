@@ -1,4 +1,3 @@
-// app/api/dashboard/[userId]/charts/route.js
 import connectToDB from "../../../../../lib/db.js";
 import Medication from "../../../../../models/Medication.js";
 import ReminderLog from "../../../../../models/ReminderLog.js";
@@ -24,7 +23,6 @@ export async function GET(req, { params }) {
       const dayEnd = new Date(currentDate);
       dayEnd.setHours(23, 59, 59, 999);
 
-      // Calculate daily compliance using your helper
       const dayCompliance = await calculateCompliance(userId, dayStart, dayEnd);
 
       chartData.push({
@@ -36,10 +34,9 @@ export async function GET(req, { params }) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    return new Response(
-      JSON.stringify({ success: true, chartData }), // directly chartData
-      { status: 200 }
-    );
+    return new Response(JSON.stringify({ success: true, chartData }), {
+      status: 200,
+    });
   } catch (error) {
     console.error("Charts endpoint error:", error);
     return new Response(JSON.stringify({ error: error.message }), {

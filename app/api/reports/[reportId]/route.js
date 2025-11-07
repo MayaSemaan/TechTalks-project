@@ -1,4 +1,3 @@
-// app/api/reports/[reportId]/route.js
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectToDB from "../../../../lib/db.js";
@@ -9,9 +8,8 @@ import { sendNotification } from "../../../utils/sendNotification.js";
 import fs from "fs";
 import path from "path";
 
-// ------------------------
 // GET a single report
-// ------------------------
+
 export async function GET(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -100,7 +98,7 @@ export async function PUT(req, { params }) {
       }
 
       report.filePath = `/uploads/reports/${fileName}`;
-      report.fileUrl = `/uploads/reports/${fileName}`; // ✅ ensure consistency
+      report.fileUrl = `/uploads/reports/${fileName}`;
       report.fileName = file.name;
     }
 
@@ -171,16 +169,16 @@ export async function PUT(req, { params }) {
       );
     }
 
-    // ✅ Return updated report with fileName
+    // Return updated report with fileName
     return NextResponse.json(report);
   } catch (err) {
     console.error("PUT /api/reports/[reportId] error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-// ------------------------
+
 // DELETE a report
-// ------------------------
+
 export async function DELETE(req, { params }) {
   try {
     const user = await authenticate(req);
@@ -214,9 +212,8 @@ export async function DELETE(req, { params }) {
   }
 }
 
-// ------------------------
 // POST a new report
-// ------------------------
+
 export async function POST(req) {
   try {
     const user = await authenticate(req);

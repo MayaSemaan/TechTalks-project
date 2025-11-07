@@ -1,4 +1,3 @@
-// app/api/family/patient/[patientId]/medications/[medId]/status/route.js
 import connectToDB from "../../../../../../../../lib/db.js";
 import Medication from "../../../../../../../../models/Medication.js";
 import User from "../../../../../../../../models/User.js";

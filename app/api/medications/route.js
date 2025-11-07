@@ -118,7 +118,7 @@ export async function POST(req) {
       type: data.type || "tablet",
       schedule: data.schedule,
       customInterval,
-      times: data.times, // <-- preserve exact selected times
+      times: data.times,
       startDate,
       endDate: parseDateSafe(data.endDate),
       reminders: !!data.reminders,

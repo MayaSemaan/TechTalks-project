@@ -1,4 +1,3 @@
-// app/api/dashboard/[userId]/compliance/route.js
 import connectToDB from "../../../../../lib/db.js";
 import {
   calculateCompliance,

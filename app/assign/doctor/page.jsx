@@ -29,7 +29,7 @@ export default function AssignDoctorPage() {
     }
 
     try {
-      // 1️⃣ Find patient ID by email
+      // Find patient ID by email
       const res = await axios.get(`/api/patients/search?email=${email}`);
       const patient = res.data;
 
@@ -41,7 +41,7 @@ export default function AssignDoctorPage() {
 
       const patientId = patient._id;
 
-      // 2️⃣ Assign patient to doctor
+      // Assign patient to doctor
       await axios.post("/api/doctor/assign", { doctorId, patientId });
 
       setSuccess(`✅ Patient (${email}) successfully assigned!`);

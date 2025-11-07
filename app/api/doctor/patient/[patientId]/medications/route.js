@@ -145,7 +145,6 @@ export async function GET(req, { params }) {
 }
 
 // ---------- POST ----------
-// ---------- POST ----------
 export async function POST(req, { params }) {
   try {
     const user = await authenticate(req);

@@ -33,7 +33,7 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), {
   ssr: false,
 });
 
-// ✅ Utility to check same day
+// Utility to check same day
 const isSameDay = (date1, date2) => {
   if (!date1 || !date2) return false;
   const d1 = new Date(date1);
@@ -45,7 +45,7 @@ const isSameDay = (date1, date2) => {
   );
 };
 
-// ✅ Check if a dose should be generated for a specific day
+// Check if a dose should be generated for a specific day
 const shouldGenerateDose = (med, day) => {
   if (!med.startDate) return false;
   const start = new Date(med.startDate);
@@ -84,7 +84,7 @@ const shouldGenerateDose = (med, day) => {
   }
 };
 
-// ✅ Generate doses for a day respecting schedule and times
+// Generate doses for a day respecting schedule and times
 const generateDosesForDay = (med, day) => {
   const existing = (med.doses || []).filter((d) => isSameDay(d.date, day));
   if (existing.length > 0) return existing;
@@ -233,8 +233,8 @@ export default function FamilyPatientDashboard() {
     }
   };
 
-  // ✅ Filtered medications with start/end date check
-  // ✅ Check if a med is active for a specific day based on schedule
+  // Filtered medications with start/end date check
+  // Check if a med is active for a specific day based on schedule
   const isMedForDay = (med, day) => {
     if (!med.startDate) return false;
 
@@ -285,7 +285,7 @@ export default function FamilyPatientDashboard() {
     }
   };
 
-  // ✅ Generate doses for a day
+  // Generate doses for a day
   const generateDosesWithStatus = (med, day) => {
     const d = new Date(day);
     const isForToday = isMedForDay(med, d);
@@ -315,7 +315,7 @@ export default function FamilyPatientDashboard() {
     });
   };
 
-  // ✅ Updated filteredMeds
+  // Updated filteredMeds
   const filteredMeds = useMemo(() => {
     const day = new Date(selectedDate);
 
@@ -360,7 +360,7 @@ export default function FamilyPatientDashboard() {
     });
   }, [data.reports, reportSearch, reportDateFrom, reportDateTo]);
 
-  // ✅ Pie chart now uses filtered meds (no separate date picker)
+  // Pie chart now uses filtered meds (no separate date picker)
   const totalDosesForPie = filteredMeds.flatMap((m) => m.filteredDoses);
 
   const pieData =

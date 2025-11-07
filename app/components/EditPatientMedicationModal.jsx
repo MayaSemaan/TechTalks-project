@@ -41,7 +41,7 @@ export default function EditPatientMedicationModal({
   const [loading, setLoading] = useState(!!medId);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [timesError, setTimesError] = useState(""); // NEW STATE FOR TIMES VALIDATION
+  const [timesError, setTimesError] = useState("");
 
   // Check if any time input is empty
   const hasEmptyTime = med.times.some((t) => !t || t.trim() === "");

@@ -79,7 +79,7 @@ export default function UploadReportPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // ✅ Immediately add new report
+      // Immediately add new report
       setReports((prev) => [res.data, ...prev]);
 
       setSuccessMessage("Report uploaded successfully!");

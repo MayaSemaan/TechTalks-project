@@ -52,7 +52,7 @@ export default function Signup() {
       localStorage.setItem("userId", _id);
       localStorage.setItem("role", role || "patient");
 
-      // ✅ Redirect based on role
+      // Redirect based on role
       if (role === "doctor") {
         window.location.href = `/assign/doctor`;
       } else if (role === "family") {

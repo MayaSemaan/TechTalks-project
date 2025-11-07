@@ -7,7 +7,7 @@ export async function GET(req, { params }) {
     await connectToDB();
     const { patientId } = params;
 
-    // ✅ FIX: correct field name (should be 'patient', not 'patientId')
+    // FIX: correct field name (should be 'patient', not 'patientId')
     const reports = await Report.find({ patient: patientId })
       .populate("doctor", "name role email")
       .populate("patient", "name role email");

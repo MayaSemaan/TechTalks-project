@@ -1,5 +1,3 @@
-// app/utils/api.js
-
 // Fetch dashboard data with meds, reports, chartData, metrics, and user info
 export async function fetchDashboardData(userId, filters = {}) {
   try {
@@ -42,14 +40,14 @@ export async function fetchDashboardData(userId, filters = {}) {
     const data = await res.json().catch(() => ({}));
     const user = data.user || { role: "patient", _id: userId };
 
-    // ✅ Helper: safe ISO string
+    // Helper: safe ISO string
     const parseDateSafe = (val) => {
       if (!val) return null;
       const d = new Date(val);
       return isNaN(d.getTime()) ? null : d.toISOString();
     };
 
-    // ✅ Helper: format frequency consistently
+    // Helper: format frequency consistently
     const formatFrequency = (med) => {
       if (!med) return "N/A";
       if (med.schedule === "custom" && med.customInterval) {
@@ -170,7 +168,7 @@ export async function deleteMedication(medId) {
   }
 }
 
-// ✅ Update a medication and return normalized data
+// Update a medication and return normalized data
 export async function updateMedication(medId, updatedData) {
   if (!medId) throw new Error("Medication ID is required");
   if (!updatedData || typeof updatedData !== "object") {
@@ -180,7 +178,7 @@ export async function updateMedication(medId, updatedData) {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-  // ✅ Always send valid ISO date strings or null
+  // Always send valid ISO date strings or null
   const bodyData = {
     ...updatedData,
     startDate: updatedData.startDate
@@ -211,14 +209,14 @@ export async function updateMedication(medId, updatedData) {
     throw new Error(data.error || "Failed to update medication");
   }
 
-  // ✅ Normalize dates so your dashboard always sees proper ones
+  // Normalize dates so your dashboard always sees proper ones
   const normalizedData = {
     ...data,
     startDate: data.startDate ? new Date(data.startDate).toISOString() : null,
     endDate: data.endDate ? new Date(data.endDate).toISOString() : null,
   };
 
-  // ✅ Always return this shape for consistency
+  // Always return this shape for consistency
   return {
     success: true,
     data: normalizedData,

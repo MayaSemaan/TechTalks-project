@@ -1,4 +1,3 @@
-// cron/index.js
 import cron from "node-cron";
 import runCron from "../cron-runner.js";
 

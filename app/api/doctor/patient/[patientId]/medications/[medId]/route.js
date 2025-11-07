@@ -158,7 +158,6 @@ export async function PUT(req, { params }) {
       };
     } else med.customInterval = null;
 
-    // Update other fields
     [
       "name",
       "dosage",

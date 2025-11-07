@@ -17,7 +17,7 @@ export async function POST(req) {
     if (!match)
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
 
-    // ✅ Include role in JWT
+    // Include role in JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET

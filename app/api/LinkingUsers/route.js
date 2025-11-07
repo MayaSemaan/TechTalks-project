@@ -6,7 +6,7 @@ export async function POST(req) {
   try {
     await connectToDB();
 
-    // ✅ Authenticate logged-in user (from token)
+    // Authenticate logged-in user (from token)
     const user = await authenticate(req);
     const { targetId, role } = await req.json();
 
@@ -16,7 +16,7 @@ export async function POST(req) {
       });
     }
 
-    // ✅ Validate that the target user exists
+    // Validate that the target user exists
     const targetUser = await User.findById(targetId);
     if (!targetUser) {
       return new Response(JSON.stringify({ error: "Target user not found" }), {
@@ -24,7 +24,7 @@ export async function POST(req) {
       });
     }
 
-    // === ✅ Role validation logic ===
+    // === Role validation logic ===
     // Doctors can link to patients
     // Family can link to patients
     // Patients cannot link anyone
@@ -43,7 +43,7 @@ export async function POST(req) {
       );
     }
 
-    // === ✅ Verify the target actually has that role ===
+    // === Verify the target actually has that role ===
     if (targetUser.role !== role) {
       return new Response(
         JSON.stringify({
@@ -53,7 +53,7 @@ export async function POST(req) {
       );
     }
 
-    // === ✅ Linking logic ===
+    // === Linking logic ===
 
     // Doctor → Patient
     if (user.role === "doctor" && role === "patient") {

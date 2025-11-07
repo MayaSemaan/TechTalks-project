@@ -9,7 +9,7 @@ export default function FamilyAssignPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Ensure only family members can access this page
+  // Ensure only family members can access this page
   useEffect(() => {
     const role = localStorage.getItem("role");
     if (role !== "family") {
@@ -24,7 +24,7 @@ export default function FamilyAssignPage() {
     setLoading(true);
 
     try {
-      // 1️⃣ Find patient by email
+      // Find patient by email
       const res = await axios.get(`/api/patients/search?email=${email}`);
       const patient = res.data;
 
@@ -43,7 +43,7 @@ export default function FamilyAssignPage() {
         return;
       }
 
-      // 2️⃣ Link this family member to the patient
+      // Link this family member to the patient
       await axios.post(
         "/api/LinkingUsers",
         { targetId: patientId, role: "patient" }, // role = patient
@@ -94,7 +94,7 @@ export default function FamilyAssignPage() {
             {loading ? "Linking..." : "Link Patient"}
           </button>
 
-          {/* ✅ Go to Dashboard button */}
+          {/* Go to Dashboard button */}
           <button
             type="button"
             onClick={() => {

@@ -41,7 +41,10 @@ This is a **Next.js fullstack project** for managing medications, tracking patie
 
 ## Tech Stack
 
-- **Frontend:** Next.js, React, Axios
+- **Frontend:** Next.js, React
+
+  - **HTTP Requests:** Axios, Fetch
+
 - **Backend:** Node.js, Next.js API routes
 
 - **Database:** MongoDB (Mongoose for schema modeling)
@@ -102,3 +105,21 @@ npm run dev
 - **Database:** MongoDB URI should be configured in `.env`. Use a cluster or local instance.
 
 ---
+
+### Example Emails
+
+---
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0005.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0002.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0003.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0006.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0004.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0007.jpg)
+
+![Email Sent Screenshot](docs/screenshots/IMG-20251107-WA0001.jpg)

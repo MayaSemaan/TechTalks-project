@@ -1,4 +1,3 @@
-// app/utils/sendNotification.js
 import { resend } from "./resend.js";
 
 export async function sendNotification(

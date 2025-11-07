@@ -1,4 +1,3 @@
-// app/api/dashboard/[userId]/reports/route.js
 import connectToDB from "../../../../../lib/db.js";
 import Report from "../../../../../models/Report.js";
 import User from "../../../../../models/User.js";

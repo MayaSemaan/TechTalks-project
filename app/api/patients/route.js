@@ -7,7 +7,7 @@ export async function GET(req) {
   try {
     await connectToDB();
 
-    // ✅ Get current logged-in user (doctor/family)
+    // Get current logged-in user (doctor/family)
     const user = await authenticate(req);
 
     let patients = [];

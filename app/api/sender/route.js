@@ -1,4 +1,3 @@
-// app/api/sender/route.js
 import { NextResponse } from "next/server";
 import { sendNotification } from "../../utils/sendNotification.js";
 
